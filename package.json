@@ -7,6 +7,10 @@
     "apps/*"
   ],
   "scripts": {
-    "changeset": "changeset"
+    "changeset": "changeset",
+    "vouchap:start": "npm run start --workspace=vouchap-app",
+    "vouchap:web": "npm run web --workspace=vouchap-app",
+    "vouchap:ios": "npm run ios --workspace=vouchap-app",
+    "vouchap:android": "npm run android --workspace=vouchap-app"
   }
 }

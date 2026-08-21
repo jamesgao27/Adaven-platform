@@ -1,0 +1,15 @@
+Invitee → firm.clients merge — which migration wins (filename order = apply order)
+
+Authoritative after full chain:
+  20260325100000_merge_invitee_into_clients_phase1_columns_backfill.sql   (schema + backfill)
+  20260325110000_firm_clients_rls_pending_and_can_access_client_id.sql   (firm.clients RLS for pending; can_access_client replaced later)
+  20260325120000_invitee_claim_engagement_update_pending_firm_clients.sql  (historical; invitee_claim_engagement replaced by 251400)
+  20260325130000_get_pending_invitees_from_firm_clients.sql               (get_pending_invitees_for_email)
+  20260325140000_phase3_invitee_rpc_firm_clients_followups.sql             (canonical firm.can_access_client, RPCs, follow_up triggers)
+  20260325150000_repair_client_follow_ups_client_id_fk.sql                 (repair / idempotent trigger refresh)
+
+Superseded for firm.can_access_client (keep files for fresh DB replay; live DB uses 251400 body):
+  20260324120000_can_access_client_via_order_invitee_project.sql
+  Intermediate state in 251100 is replaced by 251400.
+
+Rollback scripts under supabase/sql/ are historical; do not apply them after 251400 without manual edits.

@@ -4,7 +4,18 @@
 
 - Share **code**, not accounts. Vouchap, Wholestore, and future apps each have independent Supabase and registration.
 - Third-party login (Google, Apple, Microsoft, …) is a **platform** capability. Credentials, bundle IDs, and Supabase Auth providers are **per app**.
-- Platform packages version independently (semver). Each app bumps and builds on its own schedule.
+- **One git repo, independent product ships.** Platform package changes on `main` are not a store release. Each app is built from `apps/<name>` with EAS / Cloudflare when that product is ready.
+
+## Source of truth
+
+| What | Where |
+|---|---|
+| Vouchap **app** (Expo / EAS / web export) | `apps/vouchap-app` in this repo |
+| Platform kernel | `packages/*` in this repo |
+| Historical Vouchap git backup | https://github.com/jamesgao27/Vouchap — **do not iterate the app there** |
+| vouchap-website / vouchap-crm | stay in their own GitHub repos |
+
+EAS `projectId` (`f98c5cea-fd51-41e3-9c9c-1512c6b1a8e7`) and bundle id `com.vouchap.app` are unchanged.
 
 ## Layout
 
@@ -14,11 +25,12 @@ Adaven-platform/
     platform-core/
     platform-ui/
     db-platform/
-  apps/                 # vouchap-app native tree not moved yet; Vouchap uses file: deps
+  apps/
+    vouchap-app/
   docs/ARCHITECTURE-PLATFORM.md
 ```
 
-Vouchap (`/Users/macbook/Vouchap/vouchap-app`) depends on `@adaven/platform-core` and `@adaven/platform-ui` via `file:` + Metro `watchFolders`. Product overlay (`createSpace` + Firm RPC, `vouchap-space-bootstrap`) stays in Vouchap. **SQL in `db-platform` is not applied yet.**
+Vouchap depends on `@adaven/platform-core` and `@adaven/platform-ui` at a **pinned semver** (currently `0.1.0`). npm workspaces link the local packages. Bump the app dependency when that product should pick up a new platform version.
 
 ## Space creation
 
@@ -43,6 +55,7 @@ Platform stores `user_spaces.role` as text (Vouchap still has compatible `is_adm
 
 ## Independent release
 
-1. Change platform package → changeset / semver.
-2. Each app updates the dependency, then EAS / Cloudflare for **that** app only.
-3. Run `db-platform` SQL on **that** app's Supabase.
+1. Change platform package on `main` — this is **not** a Vouchap store update by itself.
+2. When Vouchap should pick it up: build/submit **from `apps/vouchap-app`** (EAS / Cloudflare).
+3. When Wholestore should pick it up: build **that** app only. Vouchap stays on whatever binary was last submitted.
+4. Run `db-platform` SQL on **that** app's Supabase only, when ready.

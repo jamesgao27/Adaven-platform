@@ -1,0 +1,37 @@
+node_modules/
+.expo/
+dist/
+
+# iOS CocoaPods（本地 pod install 生成，不提交）
+ios/Pods
+ios/build
+ios/.xcode.env.local
+npm-debug.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+# Google Service Account JSON（敏感文件，不要提交）
+vouchap-f2d1043256dd.json
+web-build/
+.env
+.env.local
+.env.development
+
+# macOS 系统文件
+.DS_Store
+**/.DS_Store
+
+# Android Gradle 缓存（非 CNG 时避免提交）
+android/.gradle
+
+# 测试文件
+test-*.js
+
+# 备份文件
+*copy*
+*.bak
+*.backup
+

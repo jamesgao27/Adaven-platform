@@ -1,0 +1,32 @@
+import { Platform, useWindowDimensions } from 'react-native';
+
+export const MOBILE_WEB_MAX_WIDTH = 920;
+
+export function isMobileWebWidth(width: number): boolean {
+  return width <= MOBILE_WEB_MAX_WIDTH;
+}
+
+export function isDesktopWebRuntime(widthHint?: number): boolean {
+  if (Platform.OS !== 'web') return false;
+  const width =
+    typeof widthHint === 'number'
+      ? widthHint
+      : typeof window !== 'undefined'
+        ? window.innerWidth
+        : MOBILE_WEB_MAX_WIDTH + 1;
+  return !isMobileWebWidth(width);
+}
+
+export function useWebViewportKind() {
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
+  const isMobileWeb = isWeb && isMobileWebWidth(width);
+  const isDesktopWeb = isWeb && !isMobileWeb;
+
+  return {
+    width,
+    isWeb,
+    isMobileWeb,
+    isDesktopWeb,
+  };
+}
