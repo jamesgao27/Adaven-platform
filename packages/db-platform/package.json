@@ -1,0 +1,6 @@
+{
+  "name": "@adaven/db-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SQL for users / spaces / user_spaces / space_invitations. Apply to each app's own Supabase."
+}

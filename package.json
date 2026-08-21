@@ -1,0 +1,12 @@
+{
+  "name": "adaven-platform",
+  "private": true,
+  "description": "Shared Space / member / invite / third-party auth kernel for Adaven apps (Vouchap, Wholestore, …). Each app has its own Supabase and ships independently.",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "changeset": "changeset"
+  }
+}
