@@ -2,6 +2,8 @@
 
 Shared **Space / members / invitations / third-party login** kernel for Adaven products.
 
+GitHub: https://github.com/jamesgao27/Adaven-platform
+
 - **This repo** (`/Users/macbook/Adaven-platform`): platform packages. Apps stay in their own repos until they are copied under `apps/`.
 - **Not** a unified login. Each app has its own Supabase; Google/Apple/Microsoft credentials are per-app.
 - **Vouchap** (`/Users/macbook/Vouchap/vouchap-app`) currently consumes these packages via `file:` + Metro alias. Native `ios/` / `android/` stay in the Vouchap repo.
