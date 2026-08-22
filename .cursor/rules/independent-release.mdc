@@ -1,0 +1,11 @@
+---
+description: Kernel is always HEAD for all apps; product Web/native ships are independent and never Git-auto-deployed from one push.
+alwaysApply: true
+---
+
+# Independent product ships (not independent kernel versions)
+
+1. **Kernel (`packages/*`)**: one shared tree. npm workspaces link current HEAD. Do **not** pin divergent `@adaven/platform-*` versions per app. Do **not** add Changesets / private npm publish for the kernel unless the user explicitly asks for version forking.
+2. **Ship cadence**: `git push` must **not** deploy Vouchap or Wholestore Web. Each product goes live only via that app’s CLI (`npm run vouchap:deploy:web` / `npm run wholestore:deploy:web`) or that app’s EAS build.
+3. **Cloudflare Pages**: Direct Upload (`wrangler pages deploy`) only. **Never** connect Git on project `vouchap` or `wholestore`. Never document Build watch paths that include `packages/**` (that would rebuild both apps on a kernel change).
+4. Details: `docs/PUBLISH.md`.

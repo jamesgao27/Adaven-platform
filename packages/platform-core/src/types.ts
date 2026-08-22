@@ -16,7 +16,7 @@ export type PlatformSpace = {
   createdAt?: string;
   updatedAt?: string;
   /** Present when the app DB has product columns; platform does not require them. */
-  kind?: string;
+  kind?: 'provider' | 'consumer' | string;
   clientProfileType?: string;
   firmStatus?: string | null;
 };

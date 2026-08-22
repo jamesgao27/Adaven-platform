@@ -1,27 +1,62 @@
 import type { SpaceKind } from '@/types';
+import type { ManagementMenuItem } from '@adaven/platform-ui';
 
-export type ManagementMenuItem = {
-  id: string;
-  title: string;
-  icon: string;
-  route: string;
-  description: string;
-};
-
-const ALL_ITEMS: ManagementMenuItem[] = [
-  { id: 'members', title: 'Members', icon: 'people-outline', route: '/space-members', description: 'Manage members & invitations' },
-  { id: 'permissions', title: 'Permissions', icon: 'shield-checkmark-outline', route: '/firm/permissions', description: 'Roles and permission scopes settings' },
-  { id: 'claim', title: 'Claim engagement', icon: 'link-outline', route: '/auth/claim', description: 'Link your space with a pending engagement from a firm' },
-  { id: 'accounts', title: 'Accounts', icon: 'wallet-outline', route: '/accounts-manage', description: 'Manage and merge accounts' },
-  { id: 'entities', title: 'Entities', icon: 'storefront-outline', route: '/entities-manage', description: 'Payee/Payer/Sender/Receiver' },
-  { id: 'expense-settings', title: 'Expense Settings', icon: 'card-outline', route: '/expense-settings', description: 'Categories and attributions' },
-  { id: 'income-settings', title: 'Income Settings', icon: 'cash-outline', route: '/income-settings', description: 'Categories and attributions' },
+const PRODUCT_ITEMS: ManagementMenuItem[] = [
+  {
+    id: 'permissions',
+    title: 'Permissions',
+    icon: 'shield-checkmark-outline',
+    route: '/firm/permissions',
+    description: 'Roles and permission scopes settings',
+  },
+  {
+    id: 'claim',
+    title: 'Claim engagement',
+    icon: 'link-outline',
+    route: '/auth/claim',
+    description: 'Link your space with a pending engagement from a firm',
+  },
+  {
+    id: 'accounts',
+    title: 'Accounts',
+    icon: 'wallet-outline',
+    route: '/accounts-manage',
+    description: 'Manage and merge accounts',
+  },
+  {
+    id: 'entities',
+    title: 'Entities',
+    icon: 'storefront-outline',
+    route: '/entities-manage',
+    description: 'Payee/Payer/Sender/Receiver',
+  },
+  {
+    id: 'expense-settings',
+    title: 'Expense Settings',
+    icon: 'card-outline',
+    route: '/expense-settings',
+    description: 'Categories and attributions',
+  },
+  {
+    id: 'income-settings',
+    title: 'Income Settings',
+    icon: 'cash-outline',
+    route: '/income-settings',
+    description: 'Categories and attributions',
+  },
+  {
+    id: 'billing',
+    title: 'Subscription and billing',
+    icon: 'receipt-outline',
+    route: '/space-orders',
+    description: 'Plans, invoices, and payment history',
+  },
 ];
 
-/** Platform-visible: Members. Remaining items are Vouchap product. */
+/** Vouchap product rows on Management. Kernel Members / Space roles come from platform-ui. */
 export function getVouchapManagementMenuItems(kind?: SpaceKind): ManagementMenuItem[] {
   if (kind === 'firm') {
-    return ALL_ITEMS.filter((item) => item.id === 'members' || item.id === 'permissions');
+    return PRODUCT_ITEMS.filter((item) => item.id === 'permissions' || item.id === 'billing');
   }
-  return ALL_ITEMS.filter((item) => item.id !== 'claim' && item.id !== 'permissions');
+  return PRODUCT_ITEMS.filter((item) => item.id !== 'claim' && item.id !== 'permissions');
 }

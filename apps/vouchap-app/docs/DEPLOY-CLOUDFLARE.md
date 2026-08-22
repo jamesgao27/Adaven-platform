@@ -1,55 +1,44 @@
-# Cloudflare Pages 部署说明（Web 端）
+# Cloudflare Pages — Vouchap Web
 
-## 构建配置（必填）
+Git SoT is **`jamesgao27/Adaven-platform`**. Pages project slug stays **`vouchap`**. Do not create a second Vouchap project. Historical `jamesgao27/Vouchap` is backup only.
 
-- **Root directory（根目录）**：**必须**填 `vouchap-app`  
-  否则会在仓库根目录执行 `npm install` 和构建，根目录没有 `react-native-web`，会报错：`Install react-native-web@^0.21.0`。
-- **构建命令**：`npx expo export -p web`
-- **构建输出目录**：`dist`
+**Do not connect Git.** Production updates are Direct Upload only so Wholestore is not rebuilt when this repo is pushed. See **`docs/PUBLISH.md`**.
 
-在 Cloudflare：**Pages** → 你的项目 → **Settings** → **Builds & deployments** → **Build configuration** 里设置 **Root directory** = `vouchap-app`。
+Kernel screens come from `@adaven/platform-ui`.
 
-## 环境变量（重要）
+## Ship
 
-### 1. 必须：Production 构建
+From **Adaven-platform** root (uses `apps/vouchap-app/.env` at export time):
 
-- 构建时需为 **production**，否则 AI Inventory 会显示、且部分资源（如图标字体）可能不按生产方式打包。
-- 在 Cloudflare Pages → 项目 → **Settings** → **Environment variables** 中：
-  - **NODE_ENV** = `production`（若未设置，Cloudflare 在「Production」分支构建时通常会自动设为 production；若发现未设置，请手动添加。）
+```bash
+npm run vouchap:deploy:web
+```
 
-### 2. AI Inventory（仅 develop 显示）
+```bash
+cd apps/vouchap-app
+npx expo export -p web
+npx wrangler pages deploy dist --project-name=vouchap
+```
 
-- **production 构建**下，AI Inventory 入口**默认隐藏**，无需再设 `EXPO_PUBLIC_SHOW_AI_INVENTORY=false`。
-- 若希望在 production 也显示 AI Inventory，可设置：**EXPO_PUBLIC_SHOW_AI_INVENTORY** = `true`。
+## Dashboard
 
-### 3. 图标/资源全部缺失时
+Workers & Pages → **vouchap** → Settings → Builds & deployments → **Disconnect Git** if a repository is linked (`jamesgao27/Vouchap` / `AI-Tax-filing`, or `Adaven-platform`). Keep Vouchap Production variables. Never set Wholestore keys.
 
-若部署后**所有界面图标不显示**，常见原因与处理：
+Until Git is disconnected, push to the old Vouchap repo can still replace this site.
 
-1. **构建未以 production 运行**  
-   确保构建环境里 **NODE_ENV=production**（见上方），然后重新构建并部署。
+## EAS
 
-2. **站点部署在子路径（如 `https://xxx.pages.dev/app/`）**  
-   需让 JS/CSS/字体等资源从子路径加载。在 Cloudflare 环境变量中增加：
-   - **EXPO_PUBLIC_WEB_BASE_PATH** = `/app`（把 `/app` 换成你的实际子路径，如 `/vouchap`，且不要末尾斜杠）
-   然后重新构建。`app.config.js` 会据此设置 `experiments.baseUrl`，资源路径会带上前缀。
+```bash
+cd apps/vouchap-app
+eas build --platform all --profile production
+```
 
-3. **确认输出目录**  
-   Cloudflare 的「Build output directory」必须为 **dist**，否则会找不到 `index.html` 和静态资源。
+`eas-build-pre-install` runs `npm ci` at the monorepo root so `@adaven/platform-*` resolve.
 
-## 推荐 Cloudflare 配置摘要
+## SPA routing
 
-| 配置项 | 值 |
-|--------|-----|
-| Build command | `npx expo export -p web` |
-| Build output directory | `dist` |
-| Root directory（若 monorepo） | `vouchap-app` |
-| NODE_ENV（Production 环境） | `production` |
+`public/_redirects` copies into `dist`:
 
-子路径部署时再增加：
-
-| 配置项 | 值 |
-|--------|-----|
-| EXPO_PUBLIC_WEB_BASE_PATH | 你的子路径，如 `/app` |
-
-保存后重新构建并部署即可。
+```
+/*    /index.html   200
+```

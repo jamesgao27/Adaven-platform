@@ -17,9 +17,37 @@ export interface SpaceInvitation {
   inviteAsAdmin?: boolean;
 }
 
+function mapInvitationRow(row: any): SpaceInvitation {
+  return {
+    id: row.id,
+    spaceId: row.space_id,
+    inviterId: row.inviter_id,
+    inviteeEmail: row.invitee_email,
+    status: row.status,
+    createdAt: row.created_at,
+    acceptedAt: row.accepted_at || undefined,
+    spaceName: row.space_name || undefined,
+    inviterEmail: row.inviter_email || undefined,
+    inviteAsAdmin: row.invite_as_admin === true,
+  };
+}
+
+export function buildInviteUrl(invitationId: string): string {
+  const cfg = getPlatformAuthConfig();
+  const base =
+    cfg.inviteDeepLinkBase
+    || ((typeof window !== 'undefined' && window.location?.origin) ? window.location.origin : '');
+  const trimmed = (base || '').replace(/\/$/, '');
+  if (trimmed) return `${trimmed}/invite/${invitationId}`;
+  return `/invite/${invitationId}`;
+}
+
 // 创建邀请（极简版本：只使用缓存数据，不查询数据库）
 // 业务逻辑：空间管理员创建邀请，包含自己的id和email（来自缓存）、当前空间id、被邀请者email、创建时间、状态
-export async function createInvitation(inviteeEmail: string): Promise<{ invitation: SpaceInvitation | null; error: Error | null }> {
+export async function createInvitation(
+  inviteeEmail: string,
+  options?: { inviteAsAdmin?: boolean }
+): Promise<{ invitation: SpaceInvitation | null; error: Error | null }> {
   try {
     // 1. 获取认证用户ID（不查询数据库）
     const { data: { user: authUser } } = await getPlatformClient().auth.getUser();
@@ -51,12 +79,14 @@ export async function createInvitation(inviteeEmail: string): Promise<{ invitati
 
     // 6. 准备插入数据（所有数据来自缓存，不查询数据库）
     const createdAt = new Date().toISOString();
+    const inviteAsAdmin = options?.inviteAsAdmin === true;
     const insertData = {
       space_id: spaceId,
       inviter_id: authUser.id, // 来自认证系统
       inviter_email: inviterEmail, // 来自缓存
       invitee_email: inviteeEmail.toLowerCase().trim(), // 用户输入
       space_name: spaceName, // 空间名称（从缓存）
+      invite_as_admin: inviteAsAdmin,
       status: 'pending', // 自动生成的状态
       created_at: createdAt, // 创建时间
     };
@@ -69,6 +99,7 @@ export async function createInvitation(inviteeEmail: string): Promise<{ invitati
       p_inviter_email: inviterEmail,
       p_invitee_email: inviteeEmail.toLowerCase().trim(),
       p_space_name: spaceName, // 传递空间名称
+      p_invite_as_admin: inviteAsAdmin,
     });
 
     if (rpcError || !invitationId) {
@@ -99,6 +130,7 @@ export async function createInvitation(inviteeEmail: string): Promise<{ invitati
             inviter_id: authUser.id,
             inviter_email: inviterEmail,
             space_name: spaceName, // 更新空间名称
+            invite_as_admin: inviteAsAdmin,
             created_at: createdAt,
             accepted_at: null,
           })
@@ -151,6 +183,7 @@ export async function createInvitation(inviteeEmail: string): Promise<{ invitati
                 inviter_id: authUser.id,
                 inviter_email: inviterEmail,
                 space_name: spaceName, // 更新空间名称
+                invite_as_admin: inviteAsAdmin,
                 created_at: createdAt,
                 accepted_at: null,
               })
@@ -196,6 +229,7 @@ export async function createInvitation(inviteeEmail: string): Promise<{ invitati
           acceptedAt: undefined,
           inviterEmail: inviterEmail,
           spaceName: spaceName,
+          inviteAsAdmin,
         },
         error: null,
       };
@@ -225,6 +259,7 @@ export async function createInvitation(inviteeEmail: string): Promise<{ invitati
         acceptedAt: undefined,
         inviterEmail: inviterEmail,
         spaceName: spaceName,
+        inviteAsAdmin,
       },
       error: null,
     };
@@ -287,6 +322,16 @@ async function sendInvitationEmail(
 // 根据ID获取邀请信息
 export async function getInvitationById(invitationId: string): Promise<SpaceInvitation | null> {
   try {
+    const { data: rpcData, error: rpcError } = await getPlatformClient().rpc('get_space_invitation_by_id', {
+      p_invitation_id: invitationId,
+    });
+    if (!rpcError && Array.isArray(rpcData) && rpcData.length > 0) {
+      return mapInvitationRow(rpcData[0]);
+    }
+    if (!rpcError && rpcData && !Array.isArray(rpcData)) {
+      return mapInvitationRow(rpcData);
+    }
+
     const { data, error } = await getPlatformClient()
       .from('space_invitations')
       .select('*')
@@ -299,19 +344,7 @@ export async function getInvitationById(invitationId: string): Promise<SpaceInvi
     }
 
     if (!data) return null;
-
-    return {
-      id: data.id,
-      spaceId: data.space_id,
-      inviterId: data.inviter_id,
-      inviteeEmail: data.invitee_email,
-      status: data.status,
-      createdAt: data.created_at,
-      acceptedAt: data.accepted_at,
-      spaceName: data.space_name || undefined,
-      inviterEmail: data.inviter_email || undefined,
-      inviteAsAdmin: data.invite_as_admin === true,
-    };
+    return mapInvitationRow(data);
   } catch (error) {
     console.error('Error getting invitation by id:', error);
     return null;
@@ -344,6 +377,18 @@ export async function getPendingInvitationsForUser(): Promise<SpaceInvitation[]>
     // RLS 策略会使用 auth.users 表的 email 来匹配 invitee_email
     const userEmail = authUser.email.toLowerCase();
     if (!userEmail) return [];
+
+    try {
+      const { data: rpcData, error: rpcError } = await getPlatformClient().rpc(
+        'get_pending_invitations_for_email',
+        { p_email: userEmail }
+      );
+      if (!rpcError && Array.isArray(rpcData)) {
+        return rpcData.map(mapInvitationRow);
+      }
+    } catch {
+      // Fall through to table query.
+    }
 
     // 直接查询邀请数据（不使用 join，因为 RLS 策略可能阻止 join）
     let data: any[] | null = null;
@@ -457,6 +502,17 @@ export async function acceptInvitation(invitationId: string): Promise<{ error: E
 
     if (invitation.status !== 'pending') {
       return { error: new Error('Invitation has already been used or cancelled') };
+    }
+
+    const { error: acceptRpcError } = await getPlatformClient().rpc('accept_space_invitation', {
+      p_invitation_id: invitationId,
+    });
+    if (!acceptRpcError) {
+      return { error: null };
+    }
+    const missing = acceptRpcError.code === '42883' || acceptRpcError.message?.includes('does not exist');
+    if (!missing) {
+      return { error: new Error(acceptRpcError.message) };
     }
 
     // 验证邮箱是否匹配（使用 auth.users，避免查询 users 表触发 RLS 权限问题）
@@ -586,6 +642,17 @@ export async function declineInvitation(invitationId: string): Promise<{ error: 
       return { error: new Error('Invitation has already been used or cancelled') };
     }
 
+    const { error: declineRpcError } = await getPlatformClient().rpc('decline_space_invitation', {
+      p_invitation_id: invitationId,
+    });
+    if (!declineRpcError) {
+      return { error: null };
+    }
+    const missing = declineRpcError.code === '42883' || declineRpcError.message?.includes('does not exist');
+    if (!missing) {
+      return { error: new Error(declineRpcError.message) };
+    }
+
     // 验证邮箱是否匹配（使用 auth.users，避免查询 users 表触发 RLS 权限问题）
     const userEmail = authUser.email?.toLowerCase();
     if (!userEmail || userEmail !== invitation.inviteeEmail.toLowerCase()) {
@@ -676,15 +743,7 @@ export async function getSpaceInvitations(spaceId: string): Promise<SpaceInvitat
     // 在UI中根据状态和是否在user_households中来分类显示
     const filteredData = data;
 
-    return filteredData.map((row: any) => ({
-      id: row.id,
-      spaceId: row.space_id,
-      inviterId: row.inviter_id,
-      inviteeEmail: row.invitee_email,
-      status: row.status,
-      createdAt: row.created_at,
-      acceptedAt: row.accepted_at,
-    }));
+    return filteredData.map((row: any) => mapInvitationRow(row));
   } catch (error) {
     console.error('Error getting household invitations:', error);
     return [];

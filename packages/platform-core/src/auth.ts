@@ -12,6 +12,14 @@ function validateConfig(): { valid: boolean; error?: string } {
   return getPlatformAuthConfig().validateConfig?.() ?? { valid: true };
 }
 
+function supabaseConfigError(): Error {
+  const config = validateConfig();
+  return new Error(
+    config.error ||
+      'Supabase is not configured. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in the app .env file, then restart Expo.'
+  );
+}
+
 export async function getCurrentUser(forceRefresh: boolean = false): Promise<User | null> {
   // 如果强制刷新或缓存未初始化，从数据库读取
   if (!forceRefresh) {
@@ -437,13 +445,7 @@ export async function signUp(email: string, password: string, householdName?: st
     if (!config.valid) {
       return {
         user: null,
-        error: new Error(
-          '网络配置错误：Supabase 未正确配置。\n\n' +
-          '请在 EAS Secrets 中设置：\n' +
-          '- EXPO_PUBLIC_SUPABASE_URL\n' +
-          '- EXPO_PUBLIC_SUPABASE_ANON_KEY\n\n' +
-          '然后重新构建应用。'
-        ),
+        error: supabaseConfigError(),
       };
     }
 
@@ -744,13 +746,7 @@ export async function signIn(email: string, password: string): Promise<{ error: 
     const config = validateConfig();
     if (!config.valid) {
       return {
-        error: new Error(
-          '网络配置错误：Supabase 未正确配置。\n\n' +
-          '请在 EAS Secrets 中设置：\n' +
-          '- EXPO_PUBLIC_SUPABASE_URL\n' +
-          '- EXPO_PUBLIC_SUPABASE_ANON_KEY\n\n' +
-          '然后重新构建应用。'
-        ),
+        error: supabaseConfigError(),
       };
     }
 
@@ -869,13 +865,7 @@ export async function resetPassword(email: string): Promise<{ error: Error | nul
     const config = validateConfig();
     if (!config.valid) {
       return {
-        error: new Error(
-          '网络配置错误：Supabase 未正确配置。\n\n' +
-          '请在 EAS Secrets 中设置：\n' +
-          '- EXPO_PUBLIC_SUPABASE_URL\n' +
-          '- EXPO_PUBLIC_SUPABASE_ANON_KEY\n\n' +
-          '然后重新构建应用。'
-        ),
+        error: supabaseConfigError(),
       };
     }
 
@@ -908,13 +898,7 @@ export async function updatePassword(newPassword: string): Promise<{ error: Erro
     const config = validateConfig();
     if (!config.valid) {
       return {
-        error: new Error(
-          '网络配置错误：Supabase 未正确配置。\n\n' +
-          '请在 EAS Secrets 中设置：\n' +
-          '- EXPO_PUBLIC_SUPABASE_URL\n' +
-          '- EXPO_PUBLIC_SUPABASE_ANON_KEY\n\n' +
-          '然后重新构建应用。'
-        ),
+        error: supabaseConfigError(),
       };
     }
 

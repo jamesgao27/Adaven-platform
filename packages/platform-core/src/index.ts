@@ -43,6 +43,8 @@ export {
   updatePassword,
 } from './auth';
 
+export { createSpaceCore } from './spaces';
+
 export {
   createInvitation,
   getInvitationById,
@@ -53,8 +55,15 @@ export {
   declineInvitation,
   getSpaceInvitations,
   cancelInvitation,
+  buildInviteUrl,
 } from './invitations';
 export type { SpaceInvitation } from './invitations';
 
-export { getSpaceMembers } from './members';
+export {
+  getSpaceMembers,
+  removeSpaceMember,
+  setSpaceMemberAdmin,
+  leaveSpace,
+  isCurrentUserSpaceAdmin,
+} from './members';
 export type { SpaceMember } from './members';

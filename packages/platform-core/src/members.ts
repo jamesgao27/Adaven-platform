@@ -138,3 +138,76 @@ export async function getSpaceMembers(): Promise<SpaceMember[]> {
     throw error;
   }
 }
+
+export async function isCurrentUserSpaceAdmin(spaceId?: string): Promise<boolean> {
+  const user = await getCurrentUser(true);
+  if (!user) return false;
+  const id = spaceId || user.currentSpaceId || user.spaceId;
+  if (!id) return false;
+  const { data, error } = await getPlatformClient()
+    .from('user_spaces')
+    .select('is_admin')
+    .eq('user_id', user.id)
+    .eq('space_id', id)
+    .maybeSingle();
+  if (error) return false;
+  return data?.is_admin === true;
+}
+
+export async function removeSpaceMember(targetUserId: string, spaceId?: string): Promise<{ error: Error | null }> {
+  try {
+    const user = await getCurrentUser(true);
+    if (!user) return { error: new Error('Not logged in') };
+    const id = spaceId || user.currentSpaceId || user.spaceId;
+    if (!id) return { error: new Error('No space selected') };
+
+    const { error } = await getPlatformClient().rpc('remove_space_member', {
+      p_target_user_id: targetUserId,
+      p_space_id: id,
+    });
+    if (error) return { error: new Error(error.message) };
+    return { error: null };
+  } catch (error) {
+    return { error: error instanceof Error ? error : new Error('Failed to remove member') };
+  }
+}
+
+export async function setSpaceMemberAdmin(
+  targetUserId: string,
+  isAdmin: boolean,
+  spaceId?: string
+): Promise<{ error: Error | null }> {
+  try {
+    const user = await getCurrentUser(true);
+    if (!user) return { error: new Error('Not logged in') };
+    const id = spaceId || user.currentSpaceId || user.spaceId;
+    if (!id) return { error: new Error('No space selected') };
+
+    const { error } = await getPlatformClient().rpc('set_space_member_admin', {
+      p_target_user_id: targetUserId,
+      p_space_id: id,
+      p_is_admin: isAdmin,
+    });
+    if (error) return { error: new Error(error.message) };
+    return { error: null };
+  } catch (error) {
+    return { error: error instanceof Error ? error : new Error('Failed to update role') };
+  }
+}
+
+export async function leaveSpace(spaceId?: string): Promise<{ error: Error | null }> {
+  try {
+    const user = await getCurrentUser(true);
+    if (!user) return { error: new Error('Not logged in') };
+    const id = spaceId || user.currentSpaceId || user.spaceId;
+    if (!id) return { error: new Error('No space selected') };
+
+    const { error } = await getPlatformClient().rpc('leave_space', {
+      p_space_id: id,
+    });
+    if (error) return { error: new Error(error.message) };
+    return { error: null };
+  } catch (error) {
+    return { error: error instanceof Error ? error : new Error('Failed to leave space') };
+  }
+}

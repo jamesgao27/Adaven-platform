@@ -5,9 +5,20 @@
   "main": "src/index.ts",
   "types": "src/index.ts",
   "peerDependencies": {
-    "react": "*",
-    "react-native": "*",
     "@adaven/platform-core": "0.1.0",
-    "@expo/vector-icons": "*"
+    "@expo/vector-icons": "*",
+    "expo-linear-gradient": "*",
+    "expo-router": "*",
+    "expo-status-bar": "*",
+    "expo-image-picker": "*",
+    "expo-file-system": "*",
+    "expo-image-manipulator": "*",
+    "react": "*",
+    "react-dom": "*",
+    "react-native": "*",
+    "react-native-svg": "*"
+  },
+  "dependencies": {
+    "date-fns": "^3.6.0"
   }
 }

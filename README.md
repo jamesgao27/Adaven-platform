@@ -4,17 +4,19 @@ Shared **Space / members / invitations / third-party login** kernel, plus produc
 
 GitHub: https://github.com/jamesgao27/Adaven-platform
 
-- **Source of truth for Vouchap the app** is `apps/vouchap-app` in **this** repo. Push git here; EAS / Cloudflare from that folder.
-- **Not** a unified login. Each app has its own Supabase; Google/Apple/Microsoft credentials are per-app.
+- **Source of truth for Vouchap the app** is `apps/vouchap-app` in **this** repo. Push git here; **Web/EAS ship is per-app CLI**, not Git auto-build. See **`docs/PUBLISH.md`**.
+- **One kernel, many apps**: shared `packages/*` is always HEAD for every app (no per-app kernel versions). Each app has its own Supabase, EAS, and **Cloudflare Pages project** (Direct Upload). Vouchap keeps the existing Pages project; Wholestore uses a different one.
+- **Not** a unified login. Google/Apple/Microsoft credentials are per-app.
 - Historical backup: https://github.com/jamesgao27/Vouchap (do not continue app development there). Marketing site and CRM stay in their own repos.
 
 ## Layout
 
 ```text
 packages/platform-core    session, spaces, invites, OAuth
-packages/platform-ui      Switch Space, third-party sign-in buttons
+packages/platform-ui      Login / register / setup space / members / invites / space roles (plus Switch Space, OAuth buttons)
 packages/db-platform      slim SQL (do not apply until an app is ready)
-apps/vouchap-app          Vouchap Expo app (EAS projectId + bundle id unchanged)
+apps/vouchap-app          Vouchap Expo app → Supabase **giuacjbfsyrristkigmz**
+apps/wholestore-app       Wholestore Expo shell → Supabase **foyecolycmxcneflpant**
 ```
 
 ## Vouchap develop / ship
@@ -23,27 +25,41 @@ apps/vouchap-app          Vouchap Expo app (EAS projectId + bundle id unchanged)
 npm install
 npm run vouchap:web          # or: npm run vouchap:start
 cd apps/vouchap-app && eas build --platform all --profile production
-cd apps/vouchap-app && npm run deploy:web
+npm run vouchap:deploy:web   # Pages **vouchap** only; git push does not deploy
 ```
 
-Changing `packages/platform-core` does **not** auto-publish Vouchap. Store / web releases still require an explicit EAS or Cloudflare build of `apps/vouchap-app`.
+## Wholestore develop / ship
+
+```bash
+# apps/wholestore-app/.env
+EXPO_PUBLIC_SUPABASE_URL=https://foyecolycmxcneflpant.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=<anon key from that project>
+
+npm run wholestore:web
+npm run wholestore:deploy:web   # Pages **wholestore** only; never Vouchap; git push does not deploy
+```
+
+Kernel SQL is ready. Apply **only** on `foyecolycmxcneflpant` (see `apps/wholestore-app/supabase/APPLY.md`). Never on Vouchap. **Applied 2026-08-21** (`000` + `010`, schemas exposed).
 
 ## Packages
 
 | Package | Role |
 |---|---|
 | `@adaven/platform-core` | session, spaces, invitations, members, `registerOnSpaceCreated`, `signInWithOAuth(provider)` |
-| `@adaven/platform-ui` | Switch Space modal, third-party sign-in buttons |
-| `@adaven/db-platform` | Slim SQL (`create_space_core`) — **do not apply until an app is ready to cut over** |
+| `@adaven/platform-ui` | Kernel **screens** + Switch Space + third-party sign-in. Apps call `configureProductUi` then re-export screens. |
+| `@adaven/db-platform` | Kernel SQL. Wholestore: `000_kernel.sql` then `010_wholestore_provider_consumer.sql` |
 
 ## SQL
 
-Do **not** push or apply `packages/db-platform/sql` until explicitly requested. Vouchap still uses existing product RPCs (`create_space_with_user`, etc.).
+- **Vouchap** (`giuacjbfsyrristkigmz`): do not apply db-platform scripts; it already has product RPCs (`create_space_with_user`, Firm schema, …).
+- **Wholestore** (`foyecolycmxcneflpant`): apply `000_kernel.sql` then `010_wholestore_provider_consumer.sql`. Skip `001_create_space_core.sql`. Details: `apps/wholestore-app/supabase/APPLY.md`.
+
+Wholestore names: `firm` → `provider`, `client` → `consumer` (`spaces.kind`, schemas, columns). No business tables in this pass.
 
 ## New app checklist
 
 1. Copy an Expo shell into `apps/<name>-app`.
 2. Create a **new** Supabase project; apply `packages/db-platform/sql` only when that app is ready.
-3. Call `bindPlatformClient(supabase)` and `registerOnSpaceCreated` for product seeds.
+3. Call `bindPlatformClient(supabase)`, `registerOnSpaceCreated`, and `configureProductUi`. Re-export kernel screens from `@adaven/platform-ui` — do not copy pages.
 4. Inject `authProviders` + that app's OAuth client IDs.
-5. Ship that app with its own EAS / Cloudflare build — other apps stay on whatever they last shipped.
+5. Own `wrangler.toml` `name` + Cloudflare Pages project (**Direct Upload, no Git**). Ship with `npm run <name>:deploy:web`. Other apps stay on whatever they last shipped (`docs/PUBLISH.md`).

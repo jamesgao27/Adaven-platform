@@ -7,10 +7,15 @@
     "apps/*"
   ],
   "scripts": {
-    "changeset": "changeset",
     "vouchap:start": "npm run start --workspace=vouchap-app",
     "vouchap:web": "npm run web --workspace=vouchap-app",
     "vouchap:ios": "npm run ios --workspace=vouchap-app",
-    "vouchap:android": "npm run android --workspace=vouchap-app"
+    "vouchap:android": "npm run android --workspace=vouchap-app",
+    "vouchap:export:web": "npm run web:export --workspace=vouchap-app",
+    "vouchap:deploy:web": "npm run deploy:web --workspace=vouchap-app",
+    "wholestore:start": "npm run start --workspace=wholestore-app",
+    "wholestore:web": "npm run web --workspace=wholestore-app",
+    "wholestore:export:web": "npm run web:export --workspace=wholestore-app",
+    "wholestore:deploy:web": "npm run deploy:web --workspace=wholestore-app"
   }
 }

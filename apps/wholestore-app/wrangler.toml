@@ -1,0 +1,5 @@
+# Cloudflare Pages project identity — never point this at Vouchap.
+# Direct Upload only (`npm run wholestore:deploy:web`). Do not connect Git — push must not auto-deploy.
+name = "wholestore"
+compatibility_date = "2026-08-21"
+pages_build_output_dir = "./dist"

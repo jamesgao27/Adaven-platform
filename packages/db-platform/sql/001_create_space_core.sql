@@ -1,5 +1,5 @@
--- Platform kernel: create space + membership only. No CRM / Firm / category seeds.
--- Apply to EACH app's own Supabase. Vouchap still has a product wrapper create_space_with_user.
+-- Generic platform create_space_core (no provider/consumer overlay).
+-- Wholestore applies 010_wholestore_provider_consumer.sql which replaces this with a kind-aware version.
 
 CREATE OR REPLACE FUNCTION public.create_space_core(
   p_space_name TEXT,
@@ -23,7 +23,7 @@ BEGIN
   INSERT INTO public.spaces (name, address)
   VALUES (
     p_space_name,
-    NULLIF(TRIM(p_space_address), '')
+    NULLIF(TRIM(COALESCE(p_space_address, '')), '')
   )
   RETURNING id INTO v_space_id;
 
