@@ -72,6 +72,11 @@ export default function LoginScreen() {
           return;
         }
       }
+      if (params.redirect === '/dealer-join') {
+        const t = (params.token ?? '').trim();
+        router.replace(t ? { pathname: '/dealer-join', params: { token: t } } : '/dealer-join');
+        return;
+      }
       // 已登录且带邀请：进接受队列，勿直接踢回首页
       if ((params.inviteId ?? '').trim()) {
         router.replace('/handle-invitations');
@@ -120,6 +125,11 @@ export default function LoginScreen() {
         router.replace({ pathname: '/auth/setup', params: { firmClientId: f } });
         return;
       }
+    }
+    if (params.redirect === '/dealer-join') {
+      const t = (params.token ?? '').trim();
+      router.replace(t ? { pathname: '/dealer-join', params: { token: t } } : '/dealer-join');
+      return;
     }
     // 顺序：inviteId / member 邀请 → firm 邀请 → 首页
     if ((params.inviteId ?? '').trim()) {

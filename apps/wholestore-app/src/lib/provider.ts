@@ -1,7 +1,36 @@
-import { getCurrentSpace, getCurrentUser, getPlatformClient } from '@adaven/platform-core';
+import { getCurrentSpace, getPlatformClient } from '@adaven/platform-core';
 
 export type DealerStatus = 'pending' | 'approved' | 'rejected';
 export type OrderStatus = 'onboarding' | 'processing' | 'completed' | 'cancelled';
+
+export type DealerDisplayStatus = 'new' | 'to_follow_up' | 'in_service' | 'to_revisit' | 'churned';
+
+export const DEALER_DISPLAY_STATUS_LABELS: Record<DealerDisplayStatus, string> = {
+  new: 'New',
+  to_follow_up: 'To Follow Up',
+  in_service: 'In Service',
+  to_revisit: 'To Revisit',
+  churned: 'Churned',
+};
+
+export type DealerFollowUpKind =
+  | 'note'
+  | 'order_created'
+  | 'order_started'
+  | 'order_completed'
+  | 'order_cancelled';
+
+export type DealerFollowUp = {
+  id: string;
+  providerSpaceId: string;
+  consumerId: string;
+  consumerSpaceId: string | null;
+  content: string;
+  kind: DealerFollowUpKind;
+  referenceId: string | null;
+  createdAt: string;
+  createdBy: string | null;
+};
 
 export type ProviderDealer = {
   id: string;
@@ -11,8 +40,19 @@ export type ProviderDealer = {
   contactName: string | null;
   contactEmail: string | null;
   status: DealerStatus;
+  labels: string[];
+  lastFollowUpAt: string | null;
+  inviteTokenId: string | null;
+  posterId: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type ProviderDealerWithDetails = ProviderDealer & {
+  isPendingClaim: boolean;
+  displayStatus: DealerDisplayStatus;
+  firstOrderAt: string | null;
+  orderCount: number;
 };
 
 export type ProviderSku = {
@@ -35,13 +75,17 @@ export type ProviderOrderLine = {
   sortOrder: number;
 };
 
+export type OrderRequestOrigin = 'provider_manual' | 'consumer_marketplace';
+
 export type ProviderOrder = {
   id: string;
   providerSpaceId: string;
   consumerId: string;
   consumerSpaceId: string | null;
   dealerName: string;
+  factoryName: string;
   status: OrderStatus;
+  requestOrigin: OrderRequestOrigin;
   createdAt: string;
   updatedAt: string;
   lines: ProviderOrderLine[];
@@ -60,9 +104,27 @@ function mapDealer(row: Record<string, any>): ProviderDealer {
     contactName: row.contact_name ?? null,
     contactEmail: row.contact_email ?? null,
     status: (row.status as DealerStatus) || 'pending',
+    labels: Array.isArray(row.labels) ? row.labels.filter((x: unknown) => typeof x === 'string' && x.trim()) : [],
+    lastFollowUpAt: row.last_follow_up_at ?? null,
+    inviteTokenId: row.invite_token_id ?? null,
+    posterId: row.poster_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+export function computeDealerDisplayStatus(dealer: ProviderDealer, orders: ProviderOrder[]): DealerDisplayStatus {
+  if (!dealer.consumerSpaceId && orders.length === 0) return 'new';
+  const active = orders.filter((o) => o.status === 'onboarding' || o.status === 'processing');
+  if (active.length) return 'in_service';
+  if (orders.length === 0) return 'new';
+  const closed = orders.every((o) => o.status === 'completed' || o.status === 'cancelled');
+  if (closed) {
+    if (!dealer.lastFollowUpAt) return 'to_follow_up';
+    return 'churned';
+  }
+  if (!dealer.lastFollowUpAt) return 'to_follow_up';
+  return 'to_revisit';
 }
 
 function mapSku(row: Record<string, any>): ProviderSku {
@@ -94,6 +156,76 @@ export async function listDealers(providerSpaceId: string): Promise<ProviderDeal
   return (data ?? []).map(mapDealer);
 }
 
+export async function listDealersWithDetails(providerSpaceId: string): Promise<ProviderDealerWithDetails[]> {
+  const [dealers, orders] = await Promise.all([listDealers(providerSpaceId), listOrders(providerSpaceId)]);
+  const ordersByDealer = new Map<string, ProviderOrder[]>();
+  for (const order of orders) {
+    const list = ordersByDealer.get(order.consumerId) ?? [];
+    list.push(order);
+    ordersByDealer.set(order.consumerId, list);
+  }
+  return dealers.map((d) => {
+    const dealerOrders = ordersByDealer.get(d.id) ?? [];
+    const first = dealerOrders.reduce<string | null>((acc, o) => {
+      if (!acc || o.createdAt < acc) return o.createdAt;
+      return acc;
+    }, null);
+    return {
+      ...d,
+      isPendingClaim: !d.consumerSpaceId,
+      displayStatus: computeDealerDisplayStatus(d, dealerOrders),
+      firstOrderAt: first,
+      orderCount: dealerOrders.length,
+    };
+  });
+}
+
+export async function updateDealerLabels(id: string, labels: string[]): Promise<void> {
+  const cleaned = labels.map((t) => t.trim()).filter(Boolean);
+  const { error } = await db().from('consumers').update({ labels: cleaned }).eq('id', id);
+  if (error) throw error;
+}
+
+export async function getDealerFollowUps(consumerId: string): Promise<DealerFollowUp[]> {
+  const { data, error } = await db()
+    .from('dealer_follow_ups')
+    .select('*')
+    .eq('consumer_id', consumerId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((row: Record<string, any>) => ({
+    id: row.id,
+    providerSpaceId: row.provider_space_id,
+    consumerId: row.consumer_id,
+    consumerSpaceId: row.consumer_space_id ?? null,
+    content: row.content ?? '',
+    kind: (row.kind ?? 'note') as DealerFollowUpKind,
+    referenceId: row.reference_id ?? null,
+    createdAt: row.created_at,
+    createdBy: row.created_by ?? null,
+  }));
+}
+
+export async function addDealerFollowUp(
+  providerSpaceId: string,
+  consumerId: string,
+  content: string,
+  consumerSpaceId?: string | null
+): Promise<void> {
+  const { data: user } = await getPlatformClient().auth.getUser();
+  const { error } = await db()
+    .from('dealer_follow_ups')
+    .insert({
+      provider_space_id: providerSpaceId,
+      consumer_id: consumerId,
+      consumer_space_id: consumerSpaceId || null,
+      content: content.trim(),
+      kind: 'note',
+      created_by: user.user?.id ?? null,
+    });
+  if (error) throw error;
+}
+
 export async function getDealer(id: string): Promise<ProviderDealer | null> {
   const { data, error } = await db().from('consumers').select('*').eq('id', id).maybeSingle();
   if (error) throw error;
@@ -105,21 +237,19 @@ export async function createDealer(input: {
   name: string;
   contactName?: string;
   contactEmail?: string;
+  posterId: string;
 }): Promise<ProviderDealer> {
-  const { data, error } = await db()
-    .from('consumers')
-    .insert({
-      provider_space_id: input.providerSpaceId,
-      consumer_space_id: null,
-      display_name: input.name.trim(),
-      contact_name: input.contactName?.trim() || null,
-      contact_email: input.contactEmail?.trim() || null,
-      status: 'pending',
-    })
-    .select('*')
-    .single();
+  const { data, error } = await db().rpc('create_dealer_with_space', {
+    p_provider_space_id: input.providerSpaceId,
+    p_dealer_name: input.name.trim(),
+    p_contact_name: input.contactName?.trim() || null,
+    p_contact_email: input.contactEmail?.trim() || null,
+    p_poster_id: input.posterId,
+  });
   if (error) throw error;
-  return mapDealer(data);
+  const row = await getDealer(data as string);
+  if (!row) throw new Error('Dealer created but not found');
+  return row;
 }
 
 export async function updateDealer(
@@ -221,13 +351,21 @@ async function attachLines(orders: Record<string, any>[]): Promise<ProviderOrder
   const consumerIds = [...new Set(orders.map((o) => o.consumer_id))];
   const { data: dealers } = await db().from('consumers').select('id, display_name').in('id', consumerIds);
   const nameById = new Map((dealers ?? []).map((d) => [d.id, d.display_name || '—']));
+  const factoryIds = [...new Set(orders.map((o) => o.provider_space_id).filter(Boolean))];
+  const factoryNameById = new Map<string, string>();
+  if (factoryIds.length) {
+    const { data: factories } = await getPlatformClient().from('spaces').select('id, name').in('id', factoryIds);
+    for (const s of factories ?? []) factoryNameById.set(s.id, s.name || '—');
+  }
   return orders.map((o) => ({
     id: o.id,
     providerSpaceId: o.provider_space_id,
     consumerId: o.consumer_id,
     consumerSpaceId: o.consumer_space_id ?? null,
     dealerName: nameById.get(o.consumer_id) || '—',
+    factoryName: factoryNameById.get(o.provider_space_id) || '—',
     status: (o.status as OrderStatus) || 'onboarding',
+    requestOrigin: (o.request_origin as OrderRequestOrigin) || 'provider_manual',
     createdAt: o.created_at,
     updatedAt: o.updated_at,
     lines: byOrder.get(o.id) ?? [],
@@ -254,46 +392,22 @@ export async function listOrdersForDealer(consumerId: string): Promise<ProviderO
   return attachLines(data ?? []);
 }
 
+export async function listOrdersForConsumerSpace(consumerSpaceId: string): Promise<ProviderOrder[]> {
+  const { data, error } = await db()
+    .from('orders')
+    .select('*')
+    .eq('consumer_space_id', consumerSpaceId)
+    .order('updated_at', { ascending: false });
+  if (error) throw error;
+  return attachLines(data ?? []);
+}
+
 export async function getOrder(id: string): Promise<ProviderOrder | null> {
   const { data, error } = await db().from('orders').select('*').eq('id', id).maybeSingle();
   if (error) throw error;
   if (!data) return null;
   const [order] = await attachLines([data]);
   return order ?? null;
-}
-
-export async function createOrder(input: {
-  providerSpaceId: string;
-  consumerId: string;
-  lines: { skuId: string; quantity: number }[];
-}): Promise<string> {
-  const user = await getCurrentUser();
-  const dealer = await getDealer(input.consumerId);
-  const { data, error } = await db()
-    .from('orders')
-    .insert({
-      provider_space_id: input.providerSpaceId,
-      consumer_id: input.consumerId,
-      consumer_space_id: dealer?.consumerSpaceId ?? null,
-      status: 'onboarding',
-      created_by: user?.id ?? null,
-    })
-    .select('id')
-    .single();
-  if (error) throw error;
-  const rows = input.lines
-    .filter((l) => l.skuId && l.quantity > 0)
-    .map((l, i) => ({
-      order_id: data.id,
-      sku_id: l.skuId,
-      quantity: l.quantity,
-      sort_order: i,
-    }));
-  if (rows.length) {
-    const { error: lineErr } = await db().from('order_lines').insert(rows);
-    if (lineErr) throw lineErr;
-  }
-  return data.id as string;
 }
 
 export async function updateOrderStatus(id: string, status: OrderStatus): Promise<void> {

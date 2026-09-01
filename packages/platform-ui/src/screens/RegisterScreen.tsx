@@ -174,7 +174,9 @@ export default function RegisterScreen() {
       {
         const t = (params.token ?? '').trim();
         const f = (params.firmClientId ?? '').trim();
-        if (params.redirect === '/auth/setup' && (t || f)) {
+        if (params.redirect === '/dealer-join' && t) {
+          router.replace({ pathname: '/login', params: { redirect: '/dealer-join', token: t, email: email.trim() } });
+        } else if (params.redirect === '/auth/setup' && (t || f)) {
           router.replace({ pathname: '/auth/setup', params: t ? { token: t } : { firmClientId: f } });
         } else {
           const lp: Record<string, string> = {};

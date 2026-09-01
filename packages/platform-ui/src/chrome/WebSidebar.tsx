@@ -34,6 +34,7 @@ const HIDE_SIDEBAR_ROUTES = [
   'handle-invitations',
   'auth',
   'invite',
+  'dealer-join',
 ];
 
 export function shouldShowWebSidebar(pathname: string): boolean {

@@ -4,13 +4,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { DataTable, type DataTableColumn, CenterModal, showToast } from '@adaven/platform-ui';
+import { getCurrentSpace } from '@adaven/platform-core';
 import { StatusPill } from '@/components/StatusPill';
 import { listPageStyles } from '@/lib/list-page-styles';
 import {
   deleteOrderLine,
   getOrder,
   listSkus,
-  requireProviderSpace,
   updateOrderStatus,
   upsertOrderLine,
   type OrderStatus,
@@ -25,13 +25,14 @@ export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [kind, setKind] = useState<'provider' | 'consumer' | null>(null);
   const [order, setOrder] = useState<ProviderOrder | null>(null);
   const [skus, setSkus] = useState<ProviderSku[]>([]);
   const [showAddSku, setShowAddSku] = useState(false);
 
   const load = useCallback(async () => {
-    const space = await requireProviderSpace();
-    if (!space) {
+    const space = await getCurrentSpace(true);
+    if (!space?.id || (space.kind !== 'provider' && space.kind !== 'consumer')) {
       router.replace('/');
       return;
     }
@@ -41,8 +42,16 @@ export default function OrderDetailScreen() {
       router.replace('/orders');
       return;
     }
+    if (space.kind === 'consumer' && row.consumerSpaceId !== space.id) {
+      showToast('Order not found', 'error');
+      router.replace('/orders');
+      return;
+    }
+    setKind(space.kind);
     setOrder(row);
-    setSkus(await listSkus(space.id));
+    if (space.kind === 'provider') {
+      setSkus(await listSkus(space.id));
+    }
   }, [id, router]);
 
   useEffect(() => {
@@ -64,6 +73,9 @@ export default function OrderDetailScreen() {
     );
   }
 
+  const isProvider = kind === 'provider';
+  const canCancelOnboarding = !isProvider && order.status === 'onboarding';
+
   const columns: DataTableColumn<ProviderOrder['lines'][number]>[] = [
     {
       id: 'sku',
@@ -76,36 +88,43 @@ export default function OrderDetailScreen() {
       label: 'Qty',
       minWidth: 80,
       stopRowPress: true,
-      getValue: (r) => (
-        <TextInput
-          style={s.qty}
-          defaultValue={String(r.quantity)}
-          keyboardType="decimal-pad"
-          onEndEditing={async (e) => {
-            const n = Number(e.nativeEvent.text);
-            if (!n || n <= 0) return;
-            await upsertOrderLine(order.id, r.skuId, n);
-            await load();
-          }}
-        />
-      ),
+      getValue: (r) =>
+        isProvider ? (
+          <TextInput
+            style={s.qty}
+            defaultValue={String(r.quantity)}
+            keyboardType="decimal-pad"
+            onEndEditing={async (e) => {
+              const n = Number(e.nativeEvent.text);
+              if (!n || n <= 0) return;
+              await upsertOrderLine(order.id, r.skuId, n);
+              await load();
+            }}
+          />
+        ) : (
+          <Text style={cellText}>{r.quantity}</Text>
+        ),
     },
-    {
-      id: 'remove',
-      label: '',
-      minWidth: 60,
-      stopRowPress: true,
-      getValue: (r) => (
-        <TouchableOpacity
-          onPress={async () => {
-            await deleteOrderLine(r.id);
-            await load();
-          }}
-        >
-          <Ionicons name="trash-outline" size={18} color="#E74C3C" />
-        </TouchableOpacity>
-      ),
-    },
+    ...(isProvider
+      ? [
+          {
+            id: 'remove',
+            label: '',
+            minWidth: 60,
+            stopRowPress: true,
+            getValue: (r: ProviderOrder['lines'][number]) => (
+              <TouchableOpacity
+                onPress={async () => {
+                  await deleteOrderLine(r.id);
+                  await load();
+                }}
+              >
+                <Ionicons name="trash-outline" size={18} color="#E74C3C" />
+              </TouchableOpacity>
+            ),
+          } satisfies DataTableColumn<ProviderOrder['lines'][number]>,
+        ]
+      : []),
   ];
 
   return (
@@ -117,31 +136,50 @@ export default function OrderDetailScreen() {
 
       <View style={s.card}>
         <Text style={s.kicker}>Info</Text>
-        <Text style={s.title}>{order.dealerName}</Text>
+        <Text style={s.title}>{isProvider ? order.dealerName : order.factoryName}</Text>
         <Text style={s.meta}>Created {format(new Date(order.createdAt), 'MMM dd, yyyy')}</Text>
-        <View style={s.statusRow}>
-          {STATUSES.map((st) => (
-            <TouchableOpacity
-              key={st}
-              onPress={async () => {
-                await updateOrderStatus(order.id, st);
-                await load();
-              }}
-            >
-              <View style={{ opacity: order.status === st ? 1 : 0.45 }}>
-                <StatusPill status={st} />
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {isProvider ? (
+          <View style={s.statusRow}>
+            {STATUSES.map((st) => (
+              <TouchableOpacity
+                key={st}
+                onPress={async () => {
+                  await updateOrderStatus(order.id, st);
+                  await load();
+                }}
+              >
+                <View style={{ opacity: order.status === st ? 1 : 0.45 }}>
+                  <StatusPill status={st} />
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : (
+          <View style={[s.statusRow, { alignItems: 'center' }]}>
+            <StatusPill status={order.status} />
+            {canCancelOnboarding ? (
+              <TouchableOpacity
+                style={listPageStyles.inviteButton}
+                onPress={async () => {
+                  await updateOrderStatus(order.id, 'cancelled');
+                  await load();
+                }}
+              >
+                <Text style={listPageStyles.inviteButtonText}>Cancel order</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        )}
       </View>
 
       <View style={s.linesHead}>
         <Text style={s.section}>SKUs</Text>
-        <TouchableOpacity style={listPageStyles.inviteButton} onPress={() => setShowAddSku(true)}>
-          <Ionicons name="add-circle-outline" size={18} color="#6C5CE7" style={{ marginRight: 4 }} />
-          <Text style={listPageStyles.inviteButtonText}>Add SKU</Text>
-        </TouchableOpacity>
+        {isProvider ? (
+          <TouchableOpacity style={listPageStyles.inviteButton} onPress={() => setShowAddSku(true)}>
+            <Ionicons name="add-circle-outline" size={18} color="#6C5CE7" style={{ marginRight: 4 }} />
+            <Text style={listPageStyles.inviteButtonText}>Add SKU</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       <DataTable
@@ -152,23 +190,25 @@ export default function OrderDetailScreen() {
         emptyMessage="No SKUs on this order"
       />
 
-      <CenterModal visible={showAddSku} title="Add SKU" onClose={() => setShowAddSku(false)} maxWidth={440} cardHeight={420}>
-        {skus
-          .filter((sku) => !order.lines.some((l) => l.skuId === sku.id))
-          .map((sku) => (
-            <TouchableOpacity
-              key={sku.id}
-              style={s.pickRow}
-              onPress={async () => {
-                await upsertOrderLine(order.id, sku.id, 1);
-                setShowAddSku(false);
-                await load();
-              }}
-            >
-              <Text style={s.pickText}>{sku.name}</Text>
-            </TouchableOpacity>
-          ))}
-      </CenterModal>
+      {isProvider ? (
+        <CenterModal visible={showAddSku} title="Add SKU" onClose={() => setShowAddSku(false)} maxWidth={440} cardHeight={420}>
+          {skus
+            .filter((sku) => !order.lines.some((l) => l.skuId === sku.id))
+            .map((sku) => (
+              <TouchableOpacity
+                key={sku.id}
+                style={s.pickRow}
+                onPress={async () => {
+                  await upsertOrderLine(order.id, sku.id, 1);
+                  setShowAddSku(false);
+                  await load();
+                }}
+              >
+                <Text style={s.pickText}>{sku.name}</Text>
+              </TouchableOpacity>
+            ))}
+        </CenterModal>
+      ) : null}
     </ScrollView>
   );
 }

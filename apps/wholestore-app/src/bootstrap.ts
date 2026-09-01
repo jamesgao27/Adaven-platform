@@ -48,9 +48,29 @@ configureProductUi({
           icon: 'library-outline',
           match: (p) => p.startsWith('/catalog'),
         },
+        {
+          path: '/marketing',
+          label: 'Marketing',
+          icon: 'images-outline',
+          match: (p) => p.startsWith('/marketing'),
+        },
       ];
     }
-    return [{ path: '/', label: 'Dashboard', icon: 'grid-outline', match: (p) => p === '/' || p === '' }];
+    return [
+      { path: '/', label: 'Dashboard', icon: 'grid-outline', match: (p) => p === '/' || p === '' },
+      {
+        path: '/suppliers',
+        label: 'Suppliers',
+        icon: 'storefront-outline',
+        match: (p) => p.startsWith('/suppliers') || p.startsWith('/marketplace'),
+      },
+      {
+        path: '/orders',
+        label: 'Orders',
+        icon: 'briefcase-outline',
+        match: (p) => p.startsWith('/orders'),
+      },
+    ];
   },
   createSpace: async ({ name, address, kind }) => {
     const { error } = await createSpaceCore(name, address || undefined, kind);

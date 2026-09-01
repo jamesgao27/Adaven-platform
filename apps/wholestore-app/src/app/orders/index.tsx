@@ -12,13 +12,13 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { DataTable, type DataTableColumn, useWebViewportKind, showToast } from '@adaven/platform-ui';
+import { getCurrentSpace } from '@adaven/platform-core';
 import { StatusPill } from '@/components/StatusPill';
-import { NewOrderModal } from '@/components/NewOrderModal';
 import { listPageStyles as styles } from '@/lib/list-page-styles';
+import { listConsumerOrders } from '@/lib/consumer';
 import {
   cancelOrders,
   listOrders,
-  requireProviderSpace,
   skuSummary,
   type ProviderOrder,
 } from '@/lib/provider';
@@ -43,19 +43,33 @@ function formatDateTime(iso: string | null | undefined): string {
   }
 }
 
-function getColumns(): DataTableColumn<ProviderOrder>[] {
+function getColumns(kind: 'provider' | 'consumer'): DataTableColumn<ProviderOrder>[] {
+  const party: DataTableColumn<ProviderOrder> =
+    kind === 'provider'
+      ? {
+          id: 'dealerName',
+          label: 'Dealer',
+          minWidth: 140,
+          getValue: (r) => (
+            <Text style={cellText} numberOfLines={1}>
+              {r.dealerName}
+            </Text>
+          ),
+          getSortValue: (r) => r.dealerName.toLowerCase(),
+        }
+      : {
+          id: 'factoryName',
+          label: 'Supplier',
+          minWidth: 140,
+          getValue: (r) => (
+            <Text style={cellText} numberOfLines={1}>
+              {r.factoryName}
+            </Text>
+          ),
+          getSortValue: (r) => r.factoryName.toLowerCase(),
+        };
   return [
-    {
-      id: 'dealerName',
-      label: 'Dealer',
-      minWidth: 140,
-      getValue: (r) => (
-        <Text style={cellText} numberOfLines={1}>
-          {r.dealerName}
-        </Text>
-      ),
-      getSortValue: (r) => r.dealerName.toLowerCase(),
-    },
+    party,
     {
       id: 'skus',
       label: 'SKUs',
@@ -94,7 +108,7 @@ function getColumns(): DataTableColumn<ProviderOrder>[] {
 export default function OrdersScreen() {
   const router = useRouter();
   const { isDesktopWeb } = useWebViewportKind();
-  const [spaceId, setSpaceId] = useState<string | null>(null);
+  const [kind, setKind] = useState<'provider' | 'consumer' | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [rows, setRows] = useState<ProviderOrder[]>([]);
@@ -102,16 +116,15 @@ export default function OrdersScreen() {
   const [sortKey, setSortKey] = useState<string | null>('updatedAt');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [showAdd, setShowAdd] = useState(false);
 
   const load = useCallback(async () => {
-    const space = await requireProviderSpace();
-    if (!space) {
+    const space = await getCurrentSpace(true);
+    if (!space?.id || (space.kind !== 'provider' && space.kind !== 'consumer')) {
       router.replace('/');
       return;
     }
-    setSpaceId(space.id);
-    setRows(await listOrders(space.id));
+    setKind(space.kind);
+    setRows(space.kind === 'provider' ? await listOrders(space.id) : await listConsumerOrders(space.id));
   }, [router]);
 
   useEffect(() => {
@@ -127,17 +140,23 @@ export default function OrdersScreen() {
     })();
   }, [load]);
 
+  const columns = useMemo(() => (kind ? getColumns(kind) : []), [kind]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     let list = rows;
     if (q) {
       list = list.filter(
-        (r) => r.dealerName.toLowerCase().includes(q) || skuSummary(r).toLowerCase().includes(q) || r.status.includes(q)
+        (r) =>
+          r.dealerName.toLowerCase().includes(q) ||
+          r.factoryName.toLowerCase().includes(q) ||
+          skuSummary(r).toLowerCase().includes(q) ||
+          r.status.includes(q)
       );
     }
-    if (sortKey) {
+    if (sortKey && kind) {
       const dir = sortDirection === 'asc' ? 1 : -1;
-      const col = getColumns().find((c) => c.id === sortKey);
+      const col = getColumns(kind).find((c) => c.id === sortKey);
       list = [...list].sort((a, b) => {
         const av = String(col?.getSortValue?.(a) ?? '').toLowerCase();
         const bv = String(col?.getSortValue?.(b) ?? '').toLowerCase();
@@ -147,14 +166,14 @@ export default function OrdersScreen() {
       });
     }
     return list;
-  }, [rows, query, sortKey, sortDirection]);
+  }, [rows, query, sortKey, sortDirection, kind]);
 
-  const columns = useMemo(() => getColumns(), []);
+  const isProvider = kind === 'provider';
 
   return (
     <View style={isDesktopWeb ? styles.webContainer : styles.container}>
       <View style={styles.toolbarSlot}>
-        {selectedIds.length > 0 ? (
+        {isProvider && selectedIds.length > 0 ? (
           <View style={styles.bulkBar}>
             <Text style={styles.bulkText}>{selectedIds.length} selected</Text>
             <TouchableOpacity
@@ -175,10 +194,6 @@ export default function OrdersScreen() {
         ) : (
           <View style={styles.header}>
             <View style={styles.headerRow}>
-              <TouchableOpacity style={styles.inviteButton} onPress={() => setShowAdd(true)} activeOpacity={0.7}>
-                <Ionicons name="add-circle-outline" size={18} color="#6C5CE7" style={{ marginRight: 4 }} />
-                <Text style={styles.inviteButtonText}>Add order</Text>
-              </TouchableOpacity>
               <View style={styles.searchContainer}>
                 <Ionicons name="search-outline" size={16} color="#95A5A6" style={styles.searchIcon} />
                 <TextInput
@@ -202,8 +217,8 @@ export default function OrdersScreen() {
             columns={columns}
             data={filtered}
             keyExtractor={(r) => r.id}
-            storageKey="wholestore-orders"
-            selectable
+            storageKey={isProvider ? 'wholestore-orders' : 'wholestore-dealer-orders'}
+            selectable={isProvider}
             selectedIds={selectedIds}
             onSelectedIdsChange={setSelectedIds}
             sortKey={sortKey}
@@ -213,7 +228,9 @@ export default function OrdersScreen() {
               setSortDirection(dir);
             }}
             onRowPress={(r) => router.push(`/orders/${r.id}`)}
-            emptyMessage="No orders yet"
+            emptyMessage={
+              isProvider ? 'No orders yet. Dealers place orders from your store.' : 'No orders yet'
+            }
           />
         </View>
       ) : (
@@ -237,7 +254,7 @@ export default function OrdersScreen() {
               onPress={() => router.push(`/orders/${r.id}`)}
               activeOpacity={0.8}
             >
-              <Text style={styles.cardTitle}>{r.dealerName}</Text>
+              <Text style={styles.cardTitle}>{isProvider ? r.dealerName : r.factoryName}</Text>
               <Text style={styles.cardSub}>{skuSummary(r)}</Text>
               <View style={{ marginTop: 8 }}>
                 <StatusPill status={r.status} />
@@ -246,19 +263,6 @@ export default function OrdersScreen() {
           ))}
         </ScrollView>
       )}
-
-      {spaceId ? (
-        <NewOrderModal
-          visible={showAdd}
-          providerSpaceId={spaceId}
-          onClose={() => setShowAdd(false)}
-          onCreated={(id) => {
-            setShowAdd(false);
-            load();
-            router.push(`/orders/${id}`);
-          }}
-        />
-      ) : null}
     </View>
   );
 }

@@ -83,6 +83,43 @@ export const listPageStyles = StyleSheet.create({
   bulkBtnClearText: { fontSize: 13, fontWeight: '600', color: '#636E72' },
   sortButton: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8 },
   sortText: { fontSize: 14, color: '#636E72', marginRight: 4, fontWeight: '500' },
+  toolbarSlotDropdownOpen: { zIndex: 100000, elevation: 100000 },
+  inviteHistoryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#F1F3F5',
+  },
+  inviteHistoryButtonText: { fontSize: 13, fontWeight: '500', color: '#636E72' },
+  groupWrap: { position: 'relative' as const, overflow: 'visible' as const },
+  groupDropdown: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    marginTop: 4,
+    backgroundColor: '#FFF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+    paddingVertical: 8,
+    minWidth: 140,
+    zIndex: 99999,
+    elevation: 99999,
+  },
+  groupOption: { paddingVertical: 10, paddingHorizontal: 14 },
+  groupOptionSelected: { backgroundColor: 'rgba(108, 92, 231, 0.1)' },
+  groupOptionText: { fontSize: 14, color: '#2D3436' },
+  groupOptionTextSelected: { color: '#6C5CE7', fontWeight: '600' },
+  filterButton: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8 },
+  filterText: { fontSize: 14, color: '#636E72', marginRight: 4, fontWeight: '500' },
+  filterBadge: { fontSize: 14, color: '#6C5CE7', fontWeight: '600' },
+  tableScroll: { flex: 1 },
+  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 48 },
+  emptyText: { fontSize: 14, color: '#95A5A6' },
+  bulkBtnDanger: { backgroundColor: '#E74C3C' },
+  bulkBtnDisabled: { opacity: 0.6 },
 });
 
 export const STATUS_LABEL: Record<string, string> = {
@@ -93,6 +130,8 @@ export const STATUS_LABEL: Record<string, string> = {
   pending: 'Pending',
   approved: 'Active',
   rejected: 'Rejected',
+  linked: 'Linked',
+  unlinked: 'No space',
 };
 
 export const STATUS_COLOR: Record<string, string> = {
@@ -103,4 +142,6 @@ export const STATUS_COLOR: Record<string, string> = {
   pending: '#F39C12',
   approved: '#00B894',
   rejected: '#B2BEC3',
+  linked: '#00B894',
+  unlinked: '#F39C12',
 };

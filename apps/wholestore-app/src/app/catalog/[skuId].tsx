@@ -145,7 +145,10 @@ export default function SkuDetailScreen() {
             {published ? 'Published' : 'Draft'}
           </Text>
         </TouchableOpacity>
-        <Text style={styles.hint}>Draft SKUs stay in the factory catalog. Published SKUs can be added to orders.</Text>
+        <Text style={styles.hint}>
+          Draft SKUs stay in the catalog. Published SKUs attach to the default store poster and can be ordered from the
+          dealer store.
+        </Text>
       </View>
 
       <View style={styles.actions}>

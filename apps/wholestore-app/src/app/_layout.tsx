@@ -45,6 +45,14 @@ export default function RootLayout() {
           <Stack.Screen name="orders/[id]" />
           <Stack.Screen name="catalog/index" />
           <Stack.Screen name="catalog/[skuId]" />
+          <Stack.Screen name="marketing/index" />
+          <Stack.Screen name="marketing/[posterId]" />
+          <Stack.Screen name="suppliers/index" />
+          <Stack.Screen name="suppliers/discover" />
+          <Stack.Screen name="suppliers/[providerSpaceId]" />
+          <Stack.Screen name="marketplace/index" />
+          <Stack.Screen name="marketplace/[providerSpaceId]" />
+          <Stack.Screen name="dealer-join" />
         </Stack>
       </View>
       <ToastHost />
