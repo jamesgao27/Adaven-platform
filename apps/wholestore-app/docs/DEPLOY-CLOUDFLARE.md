@@ -3,13 +3,15 @@
 Same **export + Wrangler Direct Upload** as Vouchap, **different Pages project**.  
 Vouchap’s live project is **`vouchap`**. This app uses **`wholestore` only**.
 
-**Do not connect Git** (same repo as Vouchap would auto-build both). See **`docs/PUBLISH.md`**.
+**Do not connect Git** on the Pages project (same repo as Vouchap would auto-build both). Push to `main` that touches `apps/wholestore-app/**` ships this app only. See **`docs/PUBLISH.md`**.
 
 Shared kernel screens come from `@adaven/platform-ui`.
 
 ## Ship
 
-From the monorepo root (`npx wrangler login` once). Uses `apps/wholestore-app/.env` at export time:
+**CI:** GitHub Action **Deploy Wholestore Web** (path filter `apps/wholestore-app/**`). Secrets in `docs/PUBLISH.md`.
+
+**CLI** from the monorepo root (`npx wrangler login` once). Uses `apps/wholestore-app/.env` at export time:
 
 ```bash
 npm run wholestore:deploy:web

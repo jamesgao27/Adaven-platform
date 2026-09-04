@@ -4,8 +4,8 @@ Shared **Space / members / invitations / third-party login** kernel, plus produc
 
 GitHub: https://github.com/jamesgao27/Adaven-platform
 
-- **Source of truth for Vouchap the app** is `apps/vouchap-app` in **this** repo. Push git here; **Web/EAS ship is per-app CLI**, not Git auto-build. See **`docs/PUBLISH.md`**.
-- **One kernel, many apps**: shared `packages/*` is always HEAD for every app (no per-app kernel versions). Each app has its own Supabase, EAS, and **Cloudflare Pages project** (Direct Upload). Vouchap keeps the existing Pages project; Wholestore uses a different one.
+- **Source of truth for Vouchap the app** is `apps/vouchap-app` in **this** repo. Push to `main` auto-ships **only the app whose folder changed** (GitHub Actions → Wrangler Direct Upload). Cloudflare Pages stays disconnected from Git. See **`docs/PUBLISH.md`**.
+- **One kernel, many apps**: shared `packages/*` is always HEAD for every app (no per-app kernel versions). Each app has its own Supabase, EAS, and **Cloudflare Pages project** (Direct Upload). Vouchap keeps the existing Pages project; Wholestore uses a different one. Kernel-only commits do not auto-deploy.
 - **Not** a unified login. Google/Apple/Microsoft credentials are per-app.
 - Historical backup: https://github.com/jamesgao27/Vouchap (do not continue app development there). Marketing site and CRM stay in their own repos.
 
@@ -25,7 +25,7 @@ apps/wholestore-app       Wholestore Expo shell → Supabase **foyecolycmxcneflp
 npm install
 npm run vouchap:web          # or: npm run vouchap:start
 cd apps/vouchap-app && eas build --platform all --profile production
-npm run vouchap:deploy:web   # Pages **vouchap** only; git push does not deploy
+npm run vouchap:deploy:web   # Pages **vouchap** only (same target as Actions)
 ```
 
 ## Wholestore develop / ship
@@ -36,7 +36,7 @@ EXPO_PUBLIC_SUPABASE_URL=https://foyecolycmxcneflpant.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=<anon key from that project>
 
 npm run wholestore:web
-npm run wholestore:deploy:web   # Pages **wholestore** only; never Vouchap; git push does not deploy
+npm run wholestore:deploy:web   # Pages **wholestore** only; never Vouchap (same target as Actions)
 ```
 
 Kernel SQL is ready. Apply **only** on `foyecolycmxcneflpant` (see `apps/wholestore-app/supabase/APPLY.md`). Never on Vouchap. **Applied 2026-08-21** (`000` + `010`, schemas exposed).
@@ -62,4 +62,4 @@ Wholestore names: `firm` → `provider`, `client` → `consumer` (`spaces.kind`,
 2. Create a **new** Supabase project; apply `packages/db-platform/sql` only when that app is ready.
 3. Call `bindPlatformClient(supabase)`, `registerOnSpaceCreated`, and `configureProductUi`. Re-export kernel screens from `@adaven/platform-ui` — do not copy pages.
 4. Inject `authProviders` + that app's OAuth client IDs.
-5. Own `wrangler.toml` `name` + Cloudflare Pages project (**Direct Upload, no Git**). Ship with `npm run <name>:deploy:web`. Other apps stay on whatever they last shipped (`docs/PUBLISH.md`).
+5. Own `wrangler.toml` `name` + Cloudflare Pages project (**Direct Upload, no Git**). Auto-ship from GitHub Actions on `apps/<name>-app/**` only. Other apps stay on whatever they last shipped (`docs/PUBLISH.md`).

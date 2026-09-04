@@ -1,0 +1,70 @@
+# Direct Upload to one Cloudflare Pages project. Callers must path-filter so
+# a push never ships both products. Do not add packages/** to those filters.
+name: Deploy Pages (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      app_dir:
+        required: true
+        type: string
+      project_name:
+        required: true
+        type: string
+      account_id:
+        required: true
+        type: string
+    secrets:
+      expo_public_supabase_url:
+        required: true
+      expo_public_supabase_anon_key:
+        required: true
+      cloudflare_api_token:
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      deployments: write
+    env:
+      NODE_ENV: production
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.expo_public_supabase_url }}
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.expo_public_supabase_anon_key }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.cloudflare_api_token }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ inputs.account_id }}
+    steps:
+      - name: Check required secrets
+        run: |
+          test -n "$EXPO_PUBLIC_SUPABASE_URL" || { echo "Missing Expo Supabase URL secret"; exit 1; }
+          test -n "$EXPO_PUBLIC_SUPABASE_ANON_KEY" || { echo "Missing Expo Supabase anon key secret"; exit 1; }
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing CLOUDFLARE_API_TOKEN"; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Missing Cloudflare account id"; exit 1; }
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install workspace
+        run: npm ci
+
+      - name: Export Expo web
+        working-directory: ${{ inputs.app_dir }}
+        run: |
+          npx expo export -p web
+          if [ -f public/_redirects ]; then cp -f public/_redirects dist/_redirects; fi
+          test -f dist/index.html
+
+      - name: Deploy Direct Upload
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.cloudflare_api_token }}
+          accountId: ${{ inputs.account_id }}
+          workingDirectory: ${{ inputs.app_dir }}
+          command: pages deploy dist --project-name=${{ inputs.project_name }} --branch=main --commit-dirty=true
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}

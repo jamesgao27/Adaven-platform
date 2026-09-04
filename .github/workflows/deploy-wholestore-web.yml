@@ -1,0 +1,30 @@
+# Ships Pages project `wholestore` only. Kernel-only commits do not run this job;
+# use workflow_dispatch after a packages/* change, or the CLI.
+name: Deploy Wholestore Web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/wholestore-app/**"
+      - ".github/workflows/deploy-wholestore-web.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-wholestore-web
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    permissions:
+      contents: read
+      deployments: write
+    uses: ./.github/workflows/deploy-web-reusable.yml
+    with:
+      app_dir: apps/wholestore-app
+      project_name: wholestore
+      account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+    secrets:
+      expo_public_supabase_url: ${{ secrets.WHOLESTORE_EXPO_PUBLIC_SUPABASE_URL }}
+      expo_public_supabase_anon_key: ${{ secrets.WHOLESTORE_EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+      cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}

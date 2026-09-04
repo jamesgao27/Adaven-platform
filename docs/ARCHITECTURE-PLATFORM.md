@@ -4,7 +4,7 @@
 
 - Share **code**, not accounts. Vouchap, Wholestore, and future apps each have independent Supabase and registration.
 - Third-party login (Google, Apple, Microsoft, …) is a **platform** capability. Credentials, bundle IDs, and Supabase Auth providers are **per app**.
-- **One git repo, one kernel, independent product ships.** `packages/*` is always HEAD for every app (no per-app kernel pin). Platform changes on `main` are not a production release. Each app ships only when you run that app’s Wrangler / EAS command. **Never** Git-connect Cloudflare Pages to this repo (one push would rebuild every connected app).
+- **One git repo, one kernel, independent product ships.** `packages/*` is always HEAD for every app (no per-app kernel pin). Platform changes on `main` are not a production release. Web ships via GitHub Actions path filters → Wrangler Direct Upload (one app per matching path), or that app’s CLI / EAS. **Never** Git-connect Cloudflare Pages to this repo (one push would rebuild every connected app).
 
 ## Source of truth
 
@@ -17,7 +17,7 @@
 
 EAS `projectId` (`f98c5cea-fd51-41e3-9c9c-1512c6b1a8e7`) and bundle id `com.vouchap.app` are unchanged.
 
-Cloudflare Pages projects are **Direct Upload** (`wrangler pages deploy` from `apps/vouchap-app` or `apps/wholestore-app`). Git source of the code is `jamesgao27/Adaven-platform`; Pages must **not** be Git-connected. See `docs/PUBLISH.md`.
+Cloudflare Pages projects are **Direct Upload** (`wrangler pages deploy` from `apps/vouchap-app` or `apps/wholestore-app`). Git source of the code is `jamesgao27/Adaven-platform`; Pages must **not** be Git-connected. Auto-publish is GitHub Actions with per-app path filters. See `docs/PUBLISH.md`.
 
 ## Information architecture
 
@@ -65,8 +65,8 @@ Platform stores `user_spaces.is_admin` (Admin / Member). Membership RPCs live in
 
 ## Independent release
 
-1. Change platform packages on `main` — both apps see it in local/dev immediately. This is **not** a production update by itself.
-2. When Vouchap should go live: `npm run vouchap:deploy:web` and/or EAS from `apps/vouchap-app`.
-3. When Wholestore should go live: `npm run wholestore:deploy:web` (and its EAS). The other product stays on the last Direct Upload / store binary.
+1. Change platform packages on `main` — both apps see it in local/dev immediately. This is **not** a production update by itself (GitHub Actions path filters exclude `packages/**`).
+2. When Vouchap should go live: push that touches `apps/vouchap-app/**`, or Actions **Deploy Vouchap Web → Run workflow**, or `npm run vouchap:deploy:web` / EAS from `apps/vouchap-app`.
+3. When Wholestore should go live: push that touches `apps/wholestore-app/**`, or Actions **Deploy Wholestore Web → Run workflow**, or `npm run wholestore:deploy:web` (and its EAS). The other product stays on the last Direct Upload / store binary.
 4. Run `db-platform` SQL on **that** app's Supabase only, when ready.
 5. Disconnect Git on Pages `vouchap` if it still tracks `jamesgao27/Vouchap`. Do not connect `wholestore` to Git.
