@@ -1,0 +1,31 @@
+# Ships Pages project `portalflow` only. Never deploy to live Vouchap (`vouchap`).
+# Kernel-only commits do not run this job; use workflow_dispatch after a packages/*
+# change, or the CLI. Requires a new Supabase project + GitHub secrets below.
+name: Deploy Portalflow Web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/portalflow-app/**"
+      - ".github/workflows/deploy-portalflow-web.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-portalflow-web
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    permissions:
+      contents: read
+      deployments: write
+    uses: ./.github/workflows/deploy-web-reusable.yml
+    with:
+      app_dir: apps/portalflow-app
+      project_name: portalflow
+      account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+    secrets:
+      expo_public_supabase_url: ${{ secrets.PORTALFLOW_EXPO_PUBLIC_SUPABASE_URL }}
+      expo_public_supabase_anon_key: ${{ secrets.PORTALFLOW_EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+      cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}

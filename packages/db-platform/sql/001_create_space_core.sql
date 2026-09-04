@@ -1,10 +1,14 @@
--- Generic platform create_space_core (no provider/consumer overlay).
--- Wholestore applies 010_wholestore_provider_consumer.sql which replaces this with a kind-aware version.
+-- Generic platform create_space_core (kernel kinds only).
+-- Wholestore applies 010_wholestore_provider_consumer.sql which replaces this with a
+-- kind-aware version that also inserts provider.providers / consumer.consumers.
+
+DROP FUNCTION IF EXISTS public.create_space_core(TEXT, TEXT, UUID);
 
 CREATE OR REPLACE FUNCTION public.create_space_core(
   p_space_name TEXT,
   p_space_address TEXT DEFAULT NULL,
-  p_user_id UUID DEFAULT NULL
+  p_user_id UUID DEFAULT NULL,
+  p_kind TEXT DEFAULT 'consumer'
 )
 RETURNS UUID
 LANGUAGE plpgsql
@@ -14,16 +18,23 @@ AS $$
 DECLARE
   v_user_id UUID;
   v_space_id UUID;
+  v_kind TEXT;
 BEGIN
   v_user_id := COALESCE(p_user_id, auth.uid());
   IF v_user_id IS NULL THEN
     RAISE EXCEPTION 'Not authenticated';
   END IF;
 
-  INSERT INTO public.spaces (name, address)
+  v_kind := COALESCE(NULLIF(TRIM(LOWER(p_kind)), ''), 'consumer');
+  IF v_kind NOT IN ('provider', 'consumer') THEN
+    RAISE EXCEPTION 'kind must be provider or consumer';
+  END IF;
+
+  INSERT INTO public.spaces (name, address, kind)
   VALUES (
     p_space_name,
-    NULLIF(TRIM(COALESCE(p_space_address, '')), '')
+    NULLIF(TRIM(COALESCE(p_space_address, '')), ''),
+    v_kind
   )
   RETURNING id INTO v_space_id;
 
@@ -39,8 +50,8 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION public.create_space_core(TEXT, TEXT, UUID) IS
-  'Platform: insert spaces + user_spaces + current_space_id. Product seeds belong in onSpaceCreated.';
+COMMENT ON FUNCTION public.create_space_core(TEXT, TEXT, UUID, TEXT) IS
+  'Platform: insert spaces + user_spaces + current_space_id. p_kind is provider | consumer. Product seeds belong in onSpaceCreated / product RPCs.';
 
-GRANT EXECUTE ON FUNCTION public.create_space_core(TEXT, TEXT, UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.create_space_core(TEXT, TEXT, UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION public.create_space_core(TEXT, TEXT, UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.create_space_core(TEXT, TEXT, UUID, TEXT) TO service_role;

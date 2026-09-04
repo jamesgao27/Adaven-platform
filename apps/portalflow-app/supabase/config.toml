@@ -1,0 +1,29 @@
+project_id = "xvqlqvtfogxkfeillvig"
+
+# Expose crm and firm so PostgREST / supabase-js .schema('crm'|'firm') work.
+[api]
+enabled = true
+schemas = ["public", "graphql_public", "crm", "firm"]
+extra_search_path = ["public", "extensions"]
+
+[auth]
+enabled = true
+site_url = "https://portalflow.pages.dev"
+additional_redirect_urls = [
+  "https://portalflow.pages.dev/**",
+  "https://portalflow.pages.dev/auth/confirm",
+  "exp://localhost:8081/**",
+  "exp://localhost:8081/--/auth/confirm",
+  "portalflow://**",
+  "portalflow://auth/confirm"
+]
+
+# Gemini: require valid Supabase user JWT at gateway; function double-checks via auth.getUser().
+# Optional secret GEMINI_PROXY_ALLOWED_ORIGINS=comma-separated origins (else *). Redeploy: supabase functions deploy gemini-proxy
+[functions.gemini-proxy]
+verify_jwt = true
+
+# Invitation email: JWT required; function verifies invitation row + inviter (see index.ts).
+# Redeploy: supabase functions deploy send-invitation-email
+[functions.send-invitation-email]
+verify_jwt = true

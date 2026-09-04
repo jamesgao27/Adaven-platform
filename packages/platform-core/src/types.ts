@@ -15,8 +15,8 @@ export type PlatformSpace = {
   logoUrl?: string | null;
   createdAt?: string;
   updatedAt?: string;
-  /** Present when the app DB has product columns; platform does not require them. */
-  kind?: 'provider' | 'consumer' | string;
+  /** Kernel space kind. Product UIs map provider→Firm/Vendor/… and consumer→Client/Dealer/…. */
+  kind?: 'provider' | 'consumer';
   clientProfileType?: string;
   firmStatus?: string | null;
 };

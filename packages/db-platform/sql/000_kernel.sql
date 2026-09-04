@@ -23,8 +23,8 @@ CREATE TABLE IF NOT EXISTS public.spaces (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-COMMENT ON TABLE public.spaces IS 'Tenant workspace. kind=provider (Factory) or consumer (Dealer).';
-COMMENT ON COLUMN public.spaces.kind IS 'provider = Factory space; consumer = Dealer space.';
+COMMENT ON TABLE public.spaces IS 'Tenant workspace. Kernel kind is provider | consumer; product UIs map labels (Firm/Client, Vendor/Dealer, …).';
+COMMENT ON COLUMN public.spaces.kind IS 'Kernel only: provider (supplies) or consumer (is served). Product copy must not introduce a third kind.';
 
 DROP TRIGGER IF EXISTS spaces_set_updated_at ON public.spaces;
 CREATE TRIGGER spaces_set_updated_at

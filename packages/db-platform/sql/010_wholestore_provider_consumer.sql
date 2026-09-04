@@ -1,5 +1,6 @@
--- Wholestore overlay on the platform kernel.
--- Rename map vs Vouchap: schema firm → provider; table/column client → consumer.
+-- Wholestore overlay on the platform kernel (spaces.kind is already provider | consumer).
+-- Product UI: Vendor = provider, Dealer = consumer.
+-- Table map vs Vouchap product schema (not kernel kinds): firm.* → provider.*; client space extras → consumer.*.
 -- No orders, prices, ERP, invoices.
 
 CREATE SCHEMA IF NOT EXISTS provider;

@@ -1,0 +1,6 @@
+# Cloudflare Pages project identity — Portalflow only.
+# Dashboard project slug is `portalflow`. Never deploy this app to live Vouchap (`vouchap`).
+# Direct Upload only (`npm run portalflow:deploy:web`). Do not connect Git.
+name = "portalflow"
+compatibility_date = "2026-08-21"
+pages_build_output_dir = "./dist"

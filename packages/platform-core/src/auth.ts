@@ -657,7 +657,7 @@ export async function signUp(email: string, password: string, householdName?: st
         await runOnSpaceCreated({
           spaceId: spaceData.id,
           name: spaceNameFinal,
-          kind: 'client',
+          kind: 'consumer',
           clientProfileType: 'household',
         });
 
@@ -683,7 +683,7 @@ export async function signUp(email: string, password: string, householdName?: st
     await runOnSpaceCreated({
       spaceId,
       name: spaceNameFinal,
-      kind: 'client',
+      kind: 'consumer',
       clientProfileType: 'household',
     });
 

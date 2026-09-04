@@ -1,6 +1,0 @@
-# Cloudflare Pages project identity — do not reuse for other apps.
-# Dashboard project slug is `vouchap` (Workers & Pages → vouchap). Never create a second Vouchap project.
-# Direct Upload only (`npm run vouchap:deploy:web`). Do not connect Git — push must not auto-deploy.
-name = "vouchap"
-compatibility_date = "2026-08-21"
-pages_build_output_dir = "./dist"

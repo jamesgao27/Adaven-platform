@@ -6,6 +6,6 @@ alwaysApply: true
 # Independent product ships (not independent kernel versions)
 
 1. **Kernel (`packages/*`)**: one shared tree. npm workspaces always link current HEAD. Do **not** pin divergent `@adaven/platform-*` versions per app. Do **not** add Changesets / private npm publish for the kernel unless the user explicitly asks for version forking.
-2. **Ship cadence**: Cloudflare Pages stays Direct Upload. GitHub Actions deploys **one** product per matching path (`apps/vouchap-app/**` → Pages `vouchap`; `apps/wholestore-app/**` → Pages `wholestore`). A `packages/**`-only push must **not** auto-deploy either app — use that app’s `workflow_dispatch` or CLI (`npm run vouchap:deploy:web` / `npm run wholestore:deploy:web`).
-3. **Cloudflare Pages**: Direct Upload (`wrangler pages deploy`) only. **Never** connect Git on project `vouchap` or `wholestore`. Never add `packages/**` to both workflow path filters (that would rebuild both apps on a kernel change).
+2. **Ship cadence**: `git push` must **not** deploy Portalflow or Wholestore Web. Each product goes live only via that app’s CLI (`npm run portalflow:deploy:web` / `npm run wholestore:deploy:web`) or that app’s EAS build — or GitHub Actions path filters (`apps/portalflow-app/**` → Pages `portalflow`; `apps/wholestore-app/**` → Pages `wholestore`). A `packages/**`-only push must **not** auto-deploy either app.
+3. **Cloudflare Pages**: Direct Upload (`wrangler pages deploy`) only. **Never** connect Git on project `portalflow`, `wholestore`, or the frozen original `vouchap`. Never document Build watch paths that include `packages/**` (that would rebuild both apps on a kernel change).
 4. Details: `docs/PUBLISH.md`.

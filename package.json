@@ -1,18 +1,18 @@
 {
   "name": "adaven-platform",
   "private": true,
-  "description": "Shared Space / member / invite / third-party auth kernel for Adaven apps (Vouchap, Wholestore, …). Each app has its own Supabase and ships independently.",
+  "description": "Shared Space / member / invite / third-party auth kernel for Adaven apps (Portalflow, Wholestore, …). Each app has its own Supabase and ships independently.",
   "workspaces": [
     "packages/*",
     "apps/*"
   ],
   "scripts": {
-    "vouchap:start": "npm run start --workspace=vouchap-app",
-    "vouchap:web": "npm run web --workspace=vouchap-app",
-    "vouchap:ios": "npm run ios --workspace=vouchap-app",
-    "vouchap:android": "npm run android --workspace=vouchap-app",
-    "vouchap:export:web": "npm run web:export --workspace=vouchap-app",
-    "vouchap:deploy:web": "npm run deploy:web --workspace=vouchap-app",
+    "portalflow:start": "npm run start --workspace=portalflow-app",
+    "portalflow:web": "npm run web --workspace=portalflow-app",
+    "portalflow:ios": "npm run ios --workspace=portalflow-app",
+    "portalflow:android": "npm run android --workspace=portalflow-app",
+    "portalflow:export:web": "npm run web:export --workspace=portalflow-app",
+    "portalflow:deploy:web": "npm run deploy:web --workspace=portalflow-app",
     "wholestore:start": "npm run start --workspace=wholestore-app",
     "wholestore:web": "npm run web --workspace=wholestore-app",
     "wholestore:export:web": "npm run web:export --workspace=wholestore-app",
