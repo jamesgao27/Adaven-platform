@@ -85,7 +85,7 @@ const STATUS_FG_SOFT: Record<string, string> = {
   cancelled: '#636E72',
 };
 
-/** Client type dot: green = claimed (order has clientSpaceId), amber = pending firm.clients row (order.client_id, no space yet). */
+/** Client type dot: green = claimed (order has clientSpaceId), amber = pending firm.clients row (order.consumer_id, no space yet). */
 const CLIENT_TYPE_DOT = { client: '#27AE60', pendingInvitee: '#F39C12' };
 function isOrderPendingClaim(o: { clientSpaceId?: string | null; clientId?: string | null }): boolean {
   return !o.clientSpaceId && !!o.clientId;
@@ -516,7 +516,7 @@ export default function FirmEngagementsScreen() {
     };
     const ch = supabase
       .channel(`firm-engagements-orders-${firmSpaceId}`)
-      .on('postgres_changes', { event: '*', schema: 'firm', table: 'orders', filter: `firm_space_id=eq.${firmSpaceId}` }, debouncedRefresh)
+      .on('postgres_changes', { event: '*', schema: 'provider', table: 'orders', filter: `provider_space_id=eq.${firmSpaceId}` }, debouncedRefresh)
       .subscribe();
     return () => {
       if (refreshTimeout) clearTimeout(refreshTimeout);

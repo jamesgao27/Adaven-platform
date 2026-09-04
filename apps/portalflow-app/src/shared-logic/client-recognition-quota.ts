@@ -60,11 +60,11 @@ function parseQuotaPayload(data: unknown): ClientRecognitionQuota | null {
 /** Load quota for a client space (always enforced; included tier from catalog CLIENT_RECOGNITION_BASE). */
 export async function fetchClientRecognitionQuota(spaceId: string): Promise<ClientRecognitionQuota | null> {
   if (!spaceId) return null;
-  const { data, error } = await supabase.schema('crm').rpc('get_client_recognition_quota', {
+  const { data, error } = await supabase.schema('crm').rpc('get_consumer_recognition_quota', {
     p_space_id: spaceId,
   });
   if (error) {
-    console.warn('[client-recognition-quota] get_client_recognition_quota', error.message);
+    console.warn('[client-recognition-quota] get_consumer_recognition_quota', error.message);
     return null;
   }
   return parseQuotaPayload(data);
@@ -115,11 +115,11 @@ export async function recordClientRecognitionSuccessIfEnforced(
   spaceId: string,
 ): Promise<{ ok: boolean; code?: string; message?: string; skipped?: boolean }> {
   if (!spaceId) return { ok: true, skipped: true };
-  const { data, error } = await supabase.schema('crm').rpc('record_client_recognition_success', {
+  const { data, error } = await supabase.schema('crm').rpc('record_consumer_recognition_success', {
     p_space_id: spaceId,
   });
   if (error) {
-    console.warn('[client-recognition-quota] record_client_recognition_success', error.message);
+    console.warn('[client-recognition-quota] record_consumer_recognition_success', error.message);
     return { ok: false, code: 'RPC_ERROR', message: error.message };
   }
   if (!data || typeof data !== 'object') return { ok: false, code: 'BAD_PAYLOAD' };

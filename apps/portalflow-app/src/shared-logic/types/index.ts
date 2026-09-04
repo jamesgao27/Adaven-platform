@@ -529,7 +529,7 @@ export const CLIENT_DISPLAY_STATUS_LABELS: Record<ClientDisplayStatus, string> =
   churned: 'Churned',
 };
 
-// Firm 在服客户：已认领名称来自 space；pending 时 client_space_id 为空，名称/邮箱在 invitee_* 列
+// Firm 在服客户：已认领名称来自 space；pending 时 consumer_space_id 为空，名称/邮箱在 invitee_* 列
 export interface FirmClient {
   id: string;
   firmSpaceId: string;

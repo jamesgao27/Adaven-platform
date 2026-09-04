@@ -197,10 +197,10 @@ export default function FirmPermissionsScreen() {
 
   const ensureDefaultAdminRole = useCallback(async (spaceId: string) => {
     const { data: existingRoles, error: existingError } = await supabase
-      .schema('firm')
+      .schema('provider')
       .from('permission_roles')
       .select('id')
-      .eq('firm_space_id', spaceId)
+      .eq('provider_space_id', spaceId)
       .limit(1);
     if (existingError) throw new Error(existingError.message);
     if ((existingRoles || []).length > 0) return;
@@ -216,10 +216,10 @@ export default function FirmPermissionsScreen() {
     if (!adminMember?.user_id) throw new Error('No firm member found for default Admin role');
 
     const { data: insertedRole, error: roleErr } = await supabase
-      .schema('firm')
+      .schema('provider')
       .from('permission_roles')
       .insert({
-        firm_space_id: spaceId,
+        provider_space_id: spaceId,
         role_name: 'Admin',
         role_key: 'admin',
         is_system: true,
@@ -232,19 +232,19 @@ export default function FirmPermissionsScreen() {
 
     const roleId = insertedRole.id as string;
     const nowIso = new Date().toISOString();
-    const { error: memberErr } = await supabase.schema('firm').from('permission_role_members').upsert(
+    const { error: memberErr } = await supabase.schema('provider').from('permission_role_members').upsert(
       {
-        firm_space_id: spaceId,
+        provider_space_id: spaceId,
         role_id: roleId,
         user_id: adminMember.user_id,
         assigned_at: nowIso,
       },
-      { onConflict: 'firm_space_id,user_id' }
+      { onConflict: 'provider_space_id,user_id' }
     );
     if (memberErr) throw new Error(memberErr.message);
 
     const scopeRows = DIMENSIONS.map((d) => ({
-      firm_space_id: spaceId,
+      provider_space_id: spaceId,
       role_id: roleId,
       dimension: d,
       scope_mode: 'all',
@@ -252,7 +252,7 @@ export default function FirmPermissionsScreen() {
       updated_at: nowIso,
     }));
     const { error: scopeErr } = await supabase
-      .schema('firm')
+      .schema('provider')
       .from('permission_role_scope')
       .upsert(scopeRows, { onConflict: 'role_id,dimension' });
     if (scopeErr) throw new Error(scopeErr.message);
@@ -260,10 +260,10 @@ export default function FirmPermissionsScreen() {
 
   const loadOrderLabels = useCallback(async (spaceId: string) => {
     const { data, error } = await supabase
-      .schema('firm')
+      .schema('provider')
       .from('order_labels')
       .select('id, label_name, dimension')
-      .eq('firm_space_id', spaceId)
+      .eq('provider_space_id', spaceId)
       .order('label_name', { ascending: true });
     if (error) {
       showToast(error.message, 'error');
@@ -313,10 +313,10 @@ export default function FirmPermissionsScreen() {
 
     const [roleRes, memberList] = await Promise.all([
       supabase
-        .schema('firm')
+        .schema('provider')
         .from('permission_roles')
         .select('id, role_name, role_key, is_system')
-        .eq('firm_space_id', space.id)
+        .eq('provider_space_id', space.id)
         .order('created_at', { ascending: true }),
       getFirmSpaceMembers(space.id),
     ]);
@@ -339,16 +339,16 @@ export default function FirmPermissionsScreen() {
     if (roleIds.length > 0) {
       const [memberRows, scopeRows] = await Promise.all([
         supabase
-          .schema('firm')
+          .schema('provider')
           .from('permission_role_members')
           .select('role_id, user_id')
-          .eq('firm_space_id', space.id)
+          .eq('provider_space_id', space.id)
           .in('role_id', roleIds),
         supabase
-          .schema('firm')
+          .schema('provider')
           .from('permission_role_scope')
           .select('role_id, dimension, scope_mode, label_ids')
-          .eq('firm_space_id', space.id)
+          .eq('provider_space_id', space.id)
           .in('role_id', roleIds),
       ]);
 
@@ -374,7 +374,7 @@ export default function FirmPermissionsScreen() {
       let labelNameById: Record<string, string> = {};
       if (allScopeLabelIds.length > 0) {
         const { data: labelRows } = await supabase
-          .schema('firm')
+          .schema('provider')
           .from('order_labels')
           .select('id, label_name')
           .in('id', allScopeLabelIds);
@@ -450,16 +450,16 @@ export default function FirmPermissionsScreen() {
 
       const [memRes, scopeRes] = await Promise.all([
         supabase
-          .schema('firm')
+          .schema('provider')
           .from('permission_role_members')
           .select('user_id')
-          .eq('firm_space_id', firmSpaceId)
+          .eq('provider_space_id', firmSpaceId)
           .eq('role_id', role.id),
         supabase
-          .schema('firm')
+          .schema('provider')
           .from('permission_role_scope')
           .select('dimension, scope_mode, label_ids')
-          .eq('firm_space_id', firmSpaceId)
+          .eq('provider_space_id', firmSpaceId)
           .eq('role_id', role.id),
       ]);
       setDraftMemberIds((memRes.data || []).map((m: any) => m.user_id));
@@ -567,10 +567,10 @@ export default function FirmPermissionsScreen() {
           if (!firmSpaceId) return;
           setSaving(true);
           const { error } = await supabase
-            .schema('firm')
+            .schema('provider')
             .from('permission_roles')
             .delete()
-            .eq('firm_space_id', firmSpaceId)
+            .eq('provider_space_id', firmSpaceId)
             .eq('id', role.id);
           setSaving(false);
           if (error) {
@@ -590,34 +590,34 @@ export default function FirmPermissionsScreen() {
   const persistMembersForRole = useCallback(
     async (spaceId: string, roleId: string, nextUserIds: string[]) => {
       const { data: existingRows } = await supabase
-        .schema('firm')
+        .schema('provider')
         .from('permission_role_members')
         .select('user_id')
-        .eq('firm_space_id', spaceId)
+        .eq('provider_space_id', spaceId)
         .eq('role_id', roleId);
       const existingIds = new Set((existingRows || []).map((r: any) => r.user_id as string));
       const nextSet = new Set(nextUserIds);
       for (const uid of existingIds) {
         if (!nextSet.has(uid)) {
           const { error } = await supabase
-            .schema('firm')
+            .schema('provider')
             .from('permission_role_members')
             .delete()
-            .eq('firm_space_id', spaceId)
+            .eq('provider_space_id', spaceId)
             .eq('user_id', uid);
           if (error) throw new Error(error.message);
         }
       }
       const now = new Date().toISOString();
       for (const uid of nextUserIds) {
-        const { error } = await supabase.schema('firm').from('permission_role_members').upsert(
+        const { error } = await supabase.schema('provider').from('permission_role_members').upsert(
           {
-            firm_space_id: spaceId,
+            provider_space_id: spaceId,
             role_id: roleId,
             user_id: uid,
             assigned_at: now,
           },
-          { onConflict: 'firm_space_id,user_id' }
+          { onConflict: 'provider_space_id,user_id' }
         );
         if (error) throw new Error(error.message);
       }
@@ -638,7 +638,7 @@ export default function FirmPermissionsScreen() {
         const mode = dimScopeMode[d];
         const label_ids = mode === 'include' ? allIds.filter((id) => dimLabels[d].includes(id)) : [];
         return {
-          firm_space_id: spaceId,
+          provider_space_id: spaceId,
           role_id: roleId,
           dimension: d,
           scope_mode: mode,
@@ -647,7 +647,7 @@ export default function FirmPermissionsScreen() {
         };
       });
       const { error } = await supabase
-        .schema('firm')
+        .schema('provider')
         .from('permission_role_scope')
         .upsert(rows, { onConflict: 'role_id,dimension' });
       if (error) throw new Error(error.message);
@@ -674,10 +674,10 @@ export default function FirmPermissionsScreen() {
       if (editingRoleId === 'new') {
         const roleKey = name.toLowerCase().replace(/\s+/g, '_');
         const { data: inserted, error: insErr } = await supabase
-          .schema('firm')
+          .schema('provider')
           .from('permission_roles')
           .insert({
-            firm_space_id: firmSpaceId,
+            provider_space_id: firmSpaceId,
             role_name: name,
             role_key: roleKey,
             is_system: false,
@@ -697,10 +697,10 @@ export default function FirmPermissionsScreen() {
         if (!role.isSystem) {
           const roleKey = name.toLowerCase().replace(/\s+/g, '_');
           const { error: updErr } = await supabase
-            .schema('firm')
+            .schema('provider')
             .from('permission_roles')
             .update({ role_name: name, role_key: roleKey })
-            .eq('firm_space_id', firmSpaceId)
+            .eq('provider_space_id', firmSpaceId)
             .eq('id', editingRoleId);
           if (updErr) throw new Error(updErr.message);
         }

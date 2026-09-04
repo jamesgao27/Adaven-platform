@@ -38,10 +38,10 @@ Kernel stores **two** kinds. Apps only change **labels and overlay tables**, not
 
 - SQL / `platform-core` / RLS / RPCs use `provider` and `consumer` only.
 - `configureProductUi({ spaceKinds: [{ id: 'provider', label: 'Firm' }, …] })` is how a product shows its vocabulary.
-- Product schemas stay per app (`firm.*` on Portalflow overlay, `provider.*` on Wholestore) until those overlays are renamed; **`public.spaces.kind` is always kernel `provider`/`consumer`**.
+- Product overlay schemas use `provider.*` / `consumer.*` identifiers only. **Firm / Client / Vendor / Dealer are UI labels**, not SQL names. **`public.spaces.kind` is always kernel `provider`/`consumer`**. Portalflow still has extra overlay tables (SKU items, groups, permission roles, tax) that Wholestore does not.
 - Frozen original Vouchap still writes `firm`/`client` into **its** production DB. Portalflow never writes to that database.
 
-**Wholestore** already stores `provider`/`consumer` (UI still says Factory in places; canonical copy is Vendor / Dealer).
+**Wholestore** overlay SQL uses `provider`/`consumer` only (UI copy is Vendor / Dealer; some screens still say supplier/factory).
 
 ## Layout
 
@@ -74,7 +74,7 @@ flowchart TD
 ```
 
 - `create_space_core`: `spaces` + `user_spaces` + `current_space_id`. `p_kind` is `provider` | `consumer`.
-- Portalflow product wrapper `create_space_with_user` calls core, then writes `firm.firms` / preset SKUs or Client CRM presets. `registerOnSpaceCreated` is the client-side fallback for the same seeds.
+- Portalflow product wrapper `create_space_with_user` calls core, then writes `provider.providers` / preset SKUs or `consumer.consumers` + Client CRM presets. `registerOnSpaceCreated` is the client-side fallback for the same seeds.
 - Wholestore overlay (`provider.providers` / `consumer.consumers`) lives in its own `create_space_core` replacement in `010_wholestore_provider_consumer.sql`.
 - Frozen original Vouchap keeps `create_space_with_user` + `firm`/`client` on `giuacjbfsyrristkigmz`.
 

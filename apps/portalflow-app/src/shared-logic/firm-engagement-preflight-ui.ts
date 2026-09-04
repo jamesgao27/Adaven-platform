@@ -44,12 +44,12 @@ export async function preflightFirmEngagementCreateOrAlert(
   return true;
 }
 
-/** Before first project link (confirm materialization). Uses same rules as CRM assert_firm_can_confirm_engagement. */
+/** Before first project link (confirm materialization). Uses same rules as CRM assert_provider_can_confirm_engagement. */
 export async function preflightFirmEngagementConfirmOrAlert(
   orderId: string,
   router: FirmRouterLike,
 ): Promise<boolean> {
-  const { error } = await supabase.schema('crm').rpc('assert_firm_can_confirm_engagement', {
+  const { error } = await supabase.schema('crm').rpc('assert_provider_can_confirm_engagement', {
     p_order_id: orderId,
   });
   if (!error) return true;

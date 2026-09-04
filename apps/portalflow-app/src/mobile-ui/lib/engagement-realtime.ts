@@ -36,7 +36,7 @@ export function subscribeFirmOrderAndLinkedProject(
       .channel(`eng-rt-firm-order-${orderId}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'firm', table: 'orders', filter: `id=eq.${orderId}` },
+        { event: '*', schema: 'provider', table: 'orders', filter: `id=eq.${orderId}` },
         fire
       )
       .subscribe();
@@ -99,9 +99,9 @@ export function subscribeClientSpaceTaxFilingOrders(
       'postgres_changes',
       {
         event: '*',
-        schema: 'firm',
+        schema: 'provider',
         table: 'orders',
-        filter: `client_space_id=eq.${clientSpaceId}`,
+        filter: `consumer_space_id=eq.${clientSpaceId}`,
       },
       fire
     )
@@ -114,7 +114,7 @@ export function subscribeClientSpaceTaxFilingOrders(
         event: '*',
         schema: 'public',
         table: 'projects',
-        filter: `client_space_id=eq.${clientSpaceId}`,
+        filter: `consumer_space_id=eq.${clientSpaceId}`,
       },
       fire
     )

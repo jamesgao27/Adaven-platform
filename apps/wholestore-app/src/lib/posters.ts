@@ -36,7 +36,7 @@ function mapPoster(row: Record<string, any>, skuIds: string[] = []): ProviderPos
 }
 
 export async function ensureDefaultPoster(providerSpaceId: string): Promise<string> {
-  const { data, error } = await getPlatformClient().rpc('ensure_factory_default_poster', {
+  const { data, error } = await getPlatformClient().rpc('ensure_provider_default_poster', {
     p_provider_space_id: providerSpaceId,
   });
   if (error) throw error;

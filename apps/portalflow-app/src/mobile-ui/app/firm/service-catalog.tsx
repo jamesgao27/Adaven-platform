@@ -87,10 +87,10 @@ export default function FirmServiceCatalogScreen() {
       const space = await getCurrentSpace(true);
       if (!space?.id || space.kind !== 'provider') return;
       const { data, error } = await supabase
-        .schema('firm')
+        .schema('provider')
         .from('skus')
         .insert({
-          firm_space_id: space.id,
+          provider_space_id: space.id,
           name: 'New Template',
           description: null,
           image_url: null,

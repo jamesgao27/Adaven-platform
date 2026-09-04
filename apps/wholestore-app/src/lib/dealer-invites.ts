@@ -76,7 +76,7 @@ export async function createDealerInviteToken(
     }
 
     const { data, error } = await provider()
-      .from('dealer_invite_tokens')
+      .from('consumer_invite_tokens')
       .insert(payload)
       .select('id, token')
       .single();
@@ -97,11 +97,11 @@ export async function getDealerInviteHistory(
   try {
     const [tokensRes, countsRes] = await Promise.all([
       provider()
-        .from('dealer_invite_tokens')
-        .select('id, token, provider_space_id, inviter_user_id, poster_id, created_at, expires_at, is_active, max_dealers')
+        .from('consumer_invite_tokens')
+        .select('id, token, provider_space_id, inviter_user_id, poster_id, created_at, expires_at, is_active, max_consumers')
         .eq('provider_space_id', providerSpaceId)
         .order('created_at', { ascending: false }),
-      client().rpc('dealer_open_invite_joined_counts', { p_provider_space_id: providerSpaceId }),
+      client().rpc('provider_open_invite_joined_counts', { p_provider_space_id: providerSpaceId }),
     ]);
     if (tokensRes.error) return { invites: [], error: new Error(tokensRes.error.message) };
     if (countsRes.error) return { invites: [], error: new Error(countsRes.error.message) };
@@ -135,7 +135,7 @@ export async function getDealerInviteHistory(
           createdAt: row.created_at,
           expiresAt: row.expires_at ?? null,
           isActive: row.is_active ?? true,
-          maxDealers: row.max_dealers ?? null,
+          maxDealers: row.max_consumers ?? null,
           currentDealers: countByTokenId.get(row.id) ?? 0,
         };
       }),
@@ -147,12 +147,12 @@ export async function getDealerInviteHistory(
 }
 
 export async function setDealerInviteActive(id: string, isActive: boolean): Promise<{ error: Error | null }> {
-  const { error } = await provider().from('dealer_invite_tokens').update({ is_active: isActive }).eq('id', id);
+  const { error } = await provider().from('consumer_invite_tokens').update({ is_active: isActive }).eq('id', id);
   return { error: error ? new Error(error.message) : null };
 }
 
 export async function deleteDealerInviteToken(id: string): Promise<{ error: Error | null }> {
-  const { error } = await provider().from('dealer_invite_tokens').delete().eq('id', id);
+  const { error } = await provider().from('consumer_invite_tokens').delete().eq('id', id);
   return { error: error ? new Error(error.message) : null };
 }
 
@@ -160,14 +160,14 @@ export async function getDealerInviteInfo(
   token: string
 ): Promise<{ info: DealerInviteInfo | null; error: Error | null }> {
   try {
-    const { data, error } = await client().rpc('dealer_get_invite_info', { p_token: token });
+    const { data, error } = await client().rpc('provider_get_consumer_invite_info', { p_token: token });
     if (error) return { info: null, error: new Error(error.message) };
     const row = Array.isArray(data) ? data[0] : data;
     if (!row) return { info: null, error: null };
     return {
       info: {
         providerSpaceId: row.provider_space_id,
-        factoryName: row.factory_name ?? undefined,
+        factoryName: row.provider_name ?? row.factory_name ?? undefined,
         inviterUserId: row.inviter_user_id,
         posterId: row.poster_id,
         posterName: row.poster_name ?? undefined,
@@ -187,7 +187,7 @@ export async function acceptDealerInvite(
   consumerSpaceId: string
 ): Promise<{ enrollmentId: string | null; error: Error | null }> {
   try {
-    const { data, error } = await client().rpc('dealer_accept_invite_token', {
+    const { data, error } = await client().rpc('provider_accept_consumer_invite_token', {
       p_token: token,
       p_consumer_space_id: consumerSpaceId,
     });

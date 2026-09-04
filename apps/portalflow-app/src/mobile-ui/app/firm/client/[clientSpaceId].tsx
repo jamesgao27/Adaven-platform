@@ -122,9 +122,9 @@ export default function FirmClientDetailScreen() {
         'postgres_changes',
         {
           event: '*',
-          schema: 'firm',
+          schema: 'provider',
           table: 'orders',
-          filter: `client_space_id=eq.${resolvedClientSpaceId}`,
+          filter: `consumer_space_id=eq.${resolvedClientSpaceId}`,
         },
         debouncedRefresh
       )

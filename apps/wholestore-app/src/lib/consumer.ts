@@ -37,7 +37,7 @@ function mapMarketplaceSku(row: Record<string, any>): MarketplaceSku {
     isPublished: row.is_published === true,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    factoryName: row.factory_name || '—',
+    factoryName: row.provider_name || row.factory_name || '—',
   };
 }
 
@@ -49,13 +49,13 @@ export async function listPublishedSkusForMarketplace(): Promise<MarketplaceSku[
 }
 
 export async function listMarketplaceFactoryPosters(): Promise<MarketplaceFactoryPoster[]> {
-  const { data, error } = await db().rpc('list_marketplace_factory_posters');
+  const { data, error } = await db().rpc('list_marketplace_provider_posters');
   if (error) throw error;
   return (data ?? []).map((row: Record<string, any>) => ({
     providerSpaceId: row.provider_space_id,
-    factoryName: row.factory_name || '—',
+    factoryName: row.provider_name || row.factory_name || '—',
     posterId: row.poster_id,
-    posterName: row.poster_name || row.factory_name || 'Store',
+    posterName: row.poster_name || row.provider_name || row.factory_name || 'Store',
     posterDescription: row.poster_description ?? null,
     imageUrl: row.image_url ?? null,
     isSystemDefault: row.is_system_default === true,
@@ -67,7 +67,7 @@ export async function listMarketplaceFactoryPosters(): Promise<MarketplaceFactor
 export async function getMarketplaceFactoryPoster(
   providerSpaceId: string
 ): Promise<MarketplaceFactoryPoster | null> {
-  const { data, error } = await db().rpc('get_marketplace_factory_poster', {
+  const { data, error } = await db().rpc('get_marketplace_provider_poster', {
     p_provider_space_id: providerSpaceId,
   });
   if (error) throw error;
@@ -75,9 +75,9 @@ export async function getMarketplaceFactoryPoster(
   if (!row) return null;
   return {
     providerSpaceId: row.provider_space_id,
-    factoryName: row.factory_name || '—',
+    factoryName: row.provider_name || row.factory_name || '—',
     posterId: row.poster_id,
-    posterName: row.poster_name || row.factory_name || 'Store',
+    posterName: row.poster_name || row.provider_name || row.factory_name || 'Store',
     posterDescription: row.poster_description ?? null,
     imageUrl: row.image_url ?? null,
     isSystemDefault: row.is_system_default === true,
@@ -87,7 +87,7 @@ export async function getMarketplaceFactoryPoster(
 }
 
 export async function applyToFactory(providerSpaceId: string, consumerSpaceId: string): Promise<void> {
-  const { error } = await db().rpc('dealer_apply_to_factory', {
+  const { error } = await db().rpc('consumer_apply_to_provider', {
     p_provider_space_id: providerSpaceId,
     p_consumer_space_id: consumerSpaceId,
   });
@@ -95,7 +95,7 @@ export async function applyToFactory(providerSpaceId: string, consumerSpaceId: s
 }
 
 export async function listStoreSkusForFactory(providerSpaceId: string): Promise<MarketplaceSku[]> {
-  const { data, error } = await db().rpc('list_store_skus_for_factory', {
+  const { data, error } = await db().rpc('list_store_skus_for_provider', {
     p_provider_space_id: providerSpaceId,
   });
   if (error) throw error;
@@ -150,20 +150,20 @@ export type PendingDealerInvite = {
 };
 
 export async function listPendingDealersForMe(): Promise<PendingDealerInvite[]> {
-  const { data, error } = await db().rpc('list_pending_dealers_for_me');
+  const { data, error } = await db().rpc('list_pending_consumers_for_me');
   if (error) throw error;
   return (data ?? []).map((row: Record<string, any>) => ({
     id: row.id,
     providerSpaceId: row.provider_space_id,
-    factoryName: row.factory_name || '—',
-    dealerName: row.dealer_name || '—',
+    factoryName: row.provider_name || row.factory_name || '—',
+    dealerName: row.consumer_name || row.dealer_name || '—',
     contactEmail: row.contact_email ?? null,
     createdAt: row.created_at,
   }));
 }
 
 export async function claimPendingDealer(enrollmentId: string, consumerSpaceId: string): Promise<void> {
-  const { error } = await db().rpc('claim_pending_dealer', {
+  const { error } = await db().rpc('claim_pending_consumer', {
     p_enrollment_id: enrollmentId,
     p_consumer_space_id: consumerSpaceId,
   });

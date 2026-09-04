@@ -188,7 +188,7 @@ export async function updateDealerLabels(id: string, labels: string[]): Promise<
 
 export async function getDealerFollowUps(consumerId: string): Promise<DealerFollowUp[]> {
   const { data, error } = await db()
-    .from('dealer_follow_ups')
+    .from('consumer_follow_ups')
     .select('*')
     .eq('consumer_id', consumerId)
     .order('created_at', { ascending: false });
@@ -214,7 +214,7 @@ export async function addDealerFollowUp(
 ): Promise<void> {
   const { data: user } = await getPlatformClient().auth.getUser();
   const { error } = await db()
-    .from('dealer_follow_ups')
+    .from('consumer_follow_ups')
     .insert({
       provider_space_id: providerSpaceId,
       consumer_id: consumerId,
@@ -239,9 +239,9 @@ export async function createDealer(input: {
   contactEmail?: string;
   posterId: string;
 }): Promise<ProviderDealer> {
-  const { data, error } = await db().rpc('create_dealer_with_space', {
+  const { data, error } = await db().rpc('create_consumer_with_space', {
     p_provider_space_id: input.providerSpaceId,
-    p_dealer_name: input.name.trim(),
+    p_consumer_name: input.name.trim(),
     p_contact_name: input.contactName?.trim() || null,
     p_contact_email: input.contactEmail?.trim() || null,
     p_poster_id: input.posterId,

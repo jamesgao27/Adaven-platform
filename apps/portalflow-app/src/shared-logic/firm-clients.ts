@@ -28,7 +28,7 @@ export interface FirmClientInviteToken {
   expiresAt: string | null;
   isActive: boolean;
   maxClients: number | null;
-  /** Rows in firm.clients with invite_token_id = this token (see firm_open_invite_joined_counts). */
+  /** Rows in firm.clients with invite_token_id = this token (see provider_open_invite_joined_counts). */
   currentClients: number;
 }
 
@@ -86,7 +86,7 @@ export async function createFirmClientInviteToken(
     }
 
     const payload: any = {
-      firm_space_id: firmSpaceId,
+      provider_space_id: firmSpaceId,
       token,
       inviter_user_id: inviterId,
       sku_id: skuId,
@@ -96,8 +96,8 @@ export async function createFirmClientInviteToken(
     }
 
     const { data, error } = await supabase
-      .schema('firm')
-      .from('client_invite_tokens')
+      .schema('provider')
+      .from('consumer_invite_tokens')
       .insert(payload)
       .select('id, token')
       .single();
@@ -131,12 +131,12 @@ export async function getFirmClientInviteHistory(
     }
     const [tokensRes, countsRes] = await Promise.all([
       supabase
-        .schema('firm')
-        .from('client_invite_tokens')
-        .select('id, token, firm_space_id, inviter_user_id, sku_id, created_at, expires_at, is_active, max_clients')
-        .eq('firm_space_id', firmSpaceId)
+        .schema('provider')
+        .from('consumer_invite_tokens')
+        .select('id, token, provider_space_id, inviter_user_id, sku_id, created_at, expires_at, is_active, max_consumers')
+        .eq('provider_space_id', firmSpaceId)
         .order('created_at', { ascending: false }),
-      supabase.rpc('firm_open_invite_joined_counts', { p_firm_space_id: firmSpaceId }),
+      supabase.rpc('provider_open_invite_joined_counts', { p_provider_space_id: firmSpaceId }),
     ]);
 
     if (tokensRes.error) {
@@ -180,7 +180,7 @@ export async function getFirmClientInviteHistory(
       return {
         id: row.id,
         token: row.token,
-        firmSpaceId: row.firm_space_id,
+        firmSpaceId: row.provider_space_id,
         inviterUserId: row.inviter_user_id,
         inviterName: inviter?.name ?? null,
         inviterEmail: inviter?.email ?? null,
@@ -188,7 +188,7 @@ export async function getFirmClientInviteHistory(
         createdAt: row.created_at,
         expiresAt: row.expires_at ?? null,
         isActive: row.is_active ?? true,
-        maxClients: row.max_clients ?? null,
+        maxClients: row.max_consumers ?? null,
         currentClients: countByTokenId.get(row.id) ?? 0,
       };
     });
@@ -211,8 +211,8 @@ export async function setFirmClientInviteActive(
       return { error: new Error('id is required') };
     }
     const { error } = await supabase
-      .schema('firm')
-      .from('client_invite_tokens')
+      .schema('provider')
+      .from('consumer_invite_tokens')
       .update({ is_active: isActive })
       .eq('id', id);
     if (error) {
@@ -233,8 +233,8 @@ export async function deleteFirmClientInviteToken(id: string): Promise<{ error: 
       return { error: new Error('id is required') };
     }
     const { error } = await supabase
-      .schema('firm')
-      .from('client_invite_tokens')
+      .schema('provider')
+      .from('consumer_invite_tokens')
       .delete()
       .eq('id', id);
     if (error) {
@@ -257,7 +257,7 @@ export async function getFirmClientInviteInfo(
       return { info: null, error: new Error('Token is required') };
     }
 
-    const { data, error } = await supabase.rpc('firm_get_client_invite_info', {
+    const { data, error } = await supabase.rpc('provider_get_consumer_invite_info', {
       p_token: token,
     });
 
@@ -271,10 +271,10 @@ export async function getFirmClientInviteInfo(
       return { info: null, error: null };
     }
 
-    // 约定 RPC 返回字段名：firm_space_id, firm_name, inviter_user_id, sku_id, token_id
+    // 约定 RPC 返回字段名：provider_space_id, firm_name, inviter_user_id, sku_id, token_id
     return {
       info: {
-        firmSpaceId: row.firm_space_id,
+        firmSpaceId: row.provider_space_id,
         firmName: row.firm_name ?? undefined,
         inviterUserId: row.inviter_user_id,
         skuId: row.sku_id,
@@ -301,10 +301,10 @@ export async function acceptFirmClientInvite(
       return { result: null, error: new Error('Token, clientSpaceId and clientUserId are required') };
     }
 
-    const { data, error } = await supabase.rpc('firm_accept_client_invite_token', {
+    const { data, error } = await supabase.rpc('provider_accept_consumer_invite_token', {
       p_token: token,
-      p_client_space_id: clientSpaceId,
-      p_client_user_id: clientUserId,
+      p_consumer_space_id: clientSpaceId,
+      p_consumer_user_id: clientUserId,
     });
 
     if (error) {
@@ -322,8 +322,8 @@ export async function acceptFirmClientInvite(
     const row = data[0];
     return {
       result: {
-        firmSpaceId: row.firm_space_id,
-        clientSpaceId: row.client_space_id,
+        firmSpaceId: row.provider_space_id,
+        clientSpaceId: row.consumer_space_id,
         inviterUserId: row.inviter_user_id,
         skuId: row.sku_id,
       },
@@ -362,8 +362,8 @@ export async function createClientOnBehalf(
 ): Promise<{ result: CreateClientOnBehalfResult | null; error: Error | null }> {
   try {
     const createInvitation = params.createInvitation !== false;
-    const { data, error } = await supabase.rpc('firm_create_client_on_behalf', {
-      p_firm_space_id: firmSpaceId,
+    const { data, error } = await supabase.rpc('provider_create_consumer_on_behalf', {
+      p_provider_space_id: firmSpaceId,
       p_client_name: (params.clientName || '').trim(),
       p_contact_name: (params.contactName || '').trim(),
       p_contact_email: (params.contactEmail || '').trim(),
@@ -381,7 +381,7 @@ export async function createClientOnBehalf(
     }
     const row = Array.isArray(data) ? data[0] : data;
     // RPC returns out_* columns to avoid PL/pgSQL ambiguity; support both for backwards compatibility
-    const clientSpaceId = row?.out_client_space_id ?? row?.client_space_id;
+    const clientSpaceId = row?.out_consumer_space_id ?? row?.consumer_space_id;
     if (!clientSpaceId) {
       return { result: null, error: new Error('Unexpected response from server') };
     }
@@ -432,8 +432,8 @@ export async function createInviteeOnly(
   }
 ): Promise<{ result: CreateInviteeOnlyResult | null; error: Error | null }> {
   try {
-    const { data, error } = await supabase.rpc('firm_create_invitee_only', {
-      p_firm_space_id: firmSpaceId,
+    const { data, error } = await supabase.rpc('provider_create_invitee_only', {
+      p_provider_space_id: firmSpaceId,
       p_client_name: (params.clientName || '').trim(),
       p_contact_name: (params.contactName || '').trim(),
       p_contact_email: (params.contactEmail || '').trim(),
@@ -448,7 +448,7 @@ export async function createInviteeOnly(
       return { result: null, error: new Error(msg) };
     }
     const row = Array.isArray(data) ? data[0] : data;
-    const firmClientId = row?.firm_client_id;
+    const firmClientId = row?.consumer_id;
     if (!firmClientId) {
       return { result: null, error: new Error('Unexpected response from server') };
     }
@@ -484,8 +484,8 @@ export async function createPendingOrderForInvitee(
   }
 ): Promise<{ result: CreatePendingOrderForInviteeResult | null; error: Error | null }> {
   try {
-    const { data, error } = await supabase.rpc('firm_create_pending_order_for_invitee', {
-      p_firm_space_id: firmSpaceId,
+    const { data, error } = await supabase.rpc('provider_create_pending_order_for_invitee', {
+      p_provider_space_id: firmSpaceId,
       p_client_name: (params.clientName || '').trim(),
       p_contact_name: (params.contactName || '').trim(),
       p_contact_email: (params.contactEmail || '').trim(),
@@ -508,8 +508,8 @@ export async function createPendingOrderForInvitee(
     return {
       result: {
         orderId,
-        firmSpaceId: row?.out_firm_space_id ?? row?.firm_space_id ?? '',
-        firmClientId: row?.firm_client_id ?? row?.out_firm_client_id ?? '',
+        firmSpaceId: row?.out_provider_space_id ?? row?.provider_space_id ?? '',
+        firmClientId: row?.consumer_id ?? row?.out_consumer_id ?? '',
         inviteeEmail: row?.out_invitee_email ?? row?.invitee_email ?? '',
       },
       error: null,
@@ -528,17 +528,17 @@ export async function createPendingOrderForInvitee(
   }
 }
 
-/** Firm 迁移模式：将某 invitee 的所有 pending orders 绑定到指定 client_space_id（原地更新 firm.orders） */
+/** Firm 迁移模式：将某 invitee 的所有 pending orders 绑定到指定 consumer_space_id（原地更新 firm.orders） */
 export async function migratePendingOrdersToClientSpace(
   firmSpaceId: string,
   firmClientId: string,
   clientSpaceId: string
 ): Promise<{ migratedOrderIds: string[]; error: Error | null }> {
   try {
-    const { data, error } = await supabase.rpc('migrate_pending_orders_to_client_space', {
-      p_firm_space_id: firmSpaceId,
-      p_firm_client_id: firmClientId,
-      p_client_space_id: clientSpaceId,
+    const { data, error } = await supabase.rpc('migrate_pending_orders_to_consumer_space', {
+      p_provider_space_id: firmSpaceId,
+      p_consumer_id: firmClientId,
+      p_consumer_space_id: clientSpaceId,
     });
     if (error) {
       if (typeof __DEV__ !== 'undefined' && __DEV__) {
@@ -571,7 +571,7 @@ export async function migratePendingOrdersToClientSpace(
 export interface PendingInviteeForClaim {
   firmSpaceId: string;
   firmName: string;
-  /** firm.clients row id (pending: client_space_id is null) */
+  /** firm.clients row id (pending: consumer_space_id is null) */
   firmClientId: string;
   inviteeClientName: string | null;
   inviteeContactEmail: string | null;
@@ -594,10 +594,10 @@ export async function getPendingInviteesForEmail(
     }
     const rows = Array.isArray(data) ? data : data ? [data] : [];
     const list = rows.map((r: any) => ({
-      firmSpaceId: r.firm_space_id,
+      firmSpaceId: r.provider_space_id,
       firmName: r.firm_name ?? '',
-      firmClientId: r.firm_client_id,
-      inviteeClientName: r.invitee_client_name ?? null,
+      firmClientId: r.consumer_id,
+      inviteeClientName: r.invitee_consumer_name ?? null,
       inviteeContactEmail: r.invitee_email ?? null,
       skuId: r.sku_id ?? null,
       orderId: r.order_id ?? null,
@@ -618,17 +618,17 @@ export async function inviteeClaimEngagement(
 ): Promise<{ result: { clientSpaceId: string; firmSpaceId: string } | null; error: Error | null }> {
   try {
     const { data, error } = await supabase.rpc('invitee_claim_engagement', {
-      p_firm_client_id: firmClientId,
-      p_client_space_id: clientSpaceId,
+      p_consumer_id: firmClientId,
+      p_consumer_space_id: clientSpaceId,
     });
     if (error) {
       const msg = [error.message, (error as any).details, (error as any).hint].filter(Boolean).join(' ');
       return { result: null, error: new Error(msg || 'Failed to claim engagement') };
     }
     const row = Array.isArray(data) ? data[0] : data;
-    if (!row?.client_space_id) return { result: null, error: null };
+    if (!row?.consumer_space_id) return { result: null, error: null };
     return {
-      result: { clientSpaceId: row.client_space_id, firmSpaceId: row.firm_space_id },
+      result: { clientSpaceId: row.consumer_space_id, firmSpaceId: row.provider_space_id },
       error: null,
     };
   } catch (e) {

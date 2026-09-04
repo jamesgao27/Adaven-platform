@@ -12,7 +12,7 @@ Portalflow is a **new** product. Do **not**:
 ## Already applied (2026-09-04)
 
 - `npx supabase db push` — full migration chain including kernel `provider`/`consumer` and `create_space_with_user`
-- PostgREST `pgrst.db_schemas` = `public, graphql_public, crm, firm` (via `ALTER ROLE authenticator`; Dashboard API config push returned 403 for this CLI role)
+- PostgREST `pgrst.db_schemas` = `public, graphql_public, crm, provider, consumer` (via `ALTER ROLE authenticator` in `20260904150000`; Dashboard API config push returned 403 for this CLI role)
 - Storage buckets: `receipts` (public), `marketplace` (public), `chat-audio` (private), `tax-filing` (private)
 - Edge functions deployed: `gemini-proxy`, `send-invitation-email`
 - Local `.env` + GitHub secrets `PORTALFLOW_EXPO_PUBLIC_*`
@@ -35,8 +35,8 @@ npx supabase db push
 
 All files under `apps/portalflow-app/supabase/migrations/`, including:
 
-- historical product overlay (`firm.*`, receipts, tax filing, CRM)
+- historical product overlay (receipts, tax filing, CRM) then `20260904150000` (`firm.*` → `provider.*` + `consumer.consumers`), `20260904151000` (SECURITY DEFINER `search_path`), `20260904152000` (no UI words in DB: `dealer_*` → `consumer_*`, leftover firm/client index/constraint/policy names)
 - kernel kinds `provider` | `consumer` on `public.spaces`
 - `20260904010000_portalflow_kernel_space_core.sql` — `create_space_core(p_kind)` + product wrapper `create_space_with_user`
 
-UI labels: **Firm** = `provider`, **Client** = `consumer`. Overlay table names stay `firm.*`.
+UI labels: **Firm** = `provider`, **Client** = `consumer`. Database identifiers are `provider` / `consumer` only (no firm/client/dealer/vendor in overlay table or column names). Portalflow keeps SKU items, 1:1 orders, groups, and permission roles.

@@ -1,9 +1,9 @@
 project_id = "xvqlqvtfogxkfeillvig"
 
-# Expose crm and firm so PostgREST / supabase-js .schema('crm'|'firm') work.
+# Expose crm, provider, consumer so PostgREST / supabase-js .schema('crm'|'provider'|'consumer') work.
 [api]
 enabled = true
-schemas = ["public", "graphql_public", "crm", "firm"]
+schemas = ["public", "graphql_public", "crm", "provider", "consumer"]
 extra_search_path = ["public", "extensions"]
 
 [auth]

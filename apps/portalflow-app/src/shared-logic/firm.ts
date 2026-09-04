@@ -74,7 +74,7 @@ async function getOrderLabelNameMap(labelIds: string[]): Promise<Record<string, 
   const ids = Array.from(new Set(labelIds.filter(Boolean)));
   if (ids.length === 0) return {};
   const { data } = await supabase
-    .schema('firm')
+    .schema('provider')
     .from('order_labels')
     .select('id, label_name')
     .in('id', ids);
@@ -101,10 +101,10 @@ async function ensureOrderLabelIdsByNames(
 
   const norms = cleaned.map((n) => n.toLowerCase());
   const { data: existingData, error: existingError } = await supabase
-    .schema('firm')
+    .schema('provider')
     .from('order_labels')
     .select('id, label_name, label_name_norm')
-    .eq('firm_space_id', firmSpaceId)
+    .eq('provider_space_id', firmSpaceId)
     .eq('dimension', dimension)
     .in('label_name_norm', norms);
   if (existingError) throw new Error(existingError.message);
@@ -114,12 +114,12 @@ async function ensureOrderLabelIdsByNames(
 
   if (missingNames.length > 0) {
     const insertRows = missingNames.map((labelName) => ({
-      firm_space_id: firmSpaceId,
+      provider_space_id: firmSpaceId,
       dimension,
       label_name: labelName,
     }));
     const { error: insertErr } = await supabase
-      .schema('firm')
+      .schema('provider')
       .from('order_labels')
       .insert(insertRows);
     if (insertErr) {
@@ -131,10 +131,10 @@ async function ensureOrderLabelIdsByNames(
   }
 
   const { data, error } = await supabase
-    .schema('firm')
+    .schema('provider')
     .from('order_labels')
     .select('id, label_name_norm')
-    .eq('firm_space_id', firmSpaceId)
+    .eq('provider_space_id', firmSpaceId)
     .eq('dimension', dimension)
     .in('label_name_norm', norms);
   if (error) throw new Error(error.message);
@@ -151,10 +151,10 @@ export async function getFirmOrderLabelsByDimension(
   dimension: 'season' | 'country' | 'scenario' | 'custom',
 ): Promise<string[]> {
   const { data, error } = await supabase
-    .schema('firm')
+    .schema('provider')
     .from('order_labels')
     .select('label_name')
-    .eq('firm_space_id', firmSpaceId)
+    .eq('provider_space_id', firmSpaceId)
     .eq('dimension', dimension)
     .order('label_name', { ascending: true });
   if (error) throw new Error(error.message);
@@ -247,7 +247,7 @@ function computeClientDisplayStatus(
   return computeDisplayStatusFromOrders(clientOrders, ctx, latestFollowUpAt);
 }
 
-/** Pending firm.clients row display status: orders linked by orders.client_id */
+/** Pending firm.clients row display status: orders linked by orders.consumer_id */
 function computeInviteeDisplayStatus(
   pendingClientId: string,
   orders: OrderForStatus[],
@@ -258,7 +258,7 @@ function computeInviteeDisplayStatus(
   return computeDisplayStatusFromOrders(inviteeOrders, ctx, latestFollowUpAt);
 }
 
-/** Unified client display status: all clients use firm.orders.client_id -> firm.clients.id */
+/** Unified client display status: all clients use firm.orders.consumer_id -> firm.clients.id */
 function computeClientDisplayStatusByClientId(
   clientId: string,
   orders: OrderForStatus[],
@@ -270,7 +270,7 @@ function computeClientDisplayStatusByClientId(
 }
 
 /** Backward-compatible matcher:
- * prefer client_id; fallback to client_space_id for legacy engagements without client_id.
+ * prefer consumer_id; fallback to consumer_space_id for legacy engagements without consumer_id.
  */
 function filterOrdersForClient(
   client: Pick<FirmClient, 'id' | 'clientSpaceId'>,
@@ -350,19 +350,19 @@ export interface FirmOrderById {
 /** 根据 orderId 获取订单（用于 engagement 详情）；附带查询关联 SKU 基本信息 */
 export async function getOrderById(orderId: string): Promise<FirmOrderById | null> {
   let { data, error } = await supabase
-    .schema('firm')
+    .schema('provider')
     .from('orders')
-    .select('id, firm_space_id, client_space_id, sku_id, status, request_origin, client_confirmed_at, firm_confirmed_at, tax_country, tax_scenario, tags, tax_country_label_id, tax_scenario_label_id, tax_season_label_id, custom_label_ids, tax_season_year, due_at, created_at, updated_at')
+    .select('id, provider_space_id, consumer_space_id, sku_id, status, request_origin, consumer_confirmed_at, provider_confirmed_at, tax_country, tax_scenario, tags, tax_country_label_id, tax_scenario_label_id, tax_season_label_id, custom_label_ids, tax_season_year, due_at, created_at, updated_at')
     .eq('id', orderId)
     .maybeSingle();
 
   // Backward compatibility: if DB migration for marketplace confirmation columns is not applied yet,
   // retry with legacy select so detail page still opens.
-  if (error && /request_origin|client_confirmed_at|firm_confirmed_at/i.test(error.message || '')) {
+  if (error && /request_origin|consumer_confirmed_at|provider_confirmed_at/i.test(error.message || '')) {
     const fallback = await supabase
-      .schema('firm')
+      .schema('provider')
       .from('orders')
-      .select('id, firm_space_id, client_space_id, sku_id, status, tax_country, tax_scenario, tags, tax_country_label_id, tax_scenario_label_id, tax_season_label_id, custom_label_ids, tax_season_year, due_at, created_at, updated_at')
+      .select('id, provider_space_id, consumer_space_id, sku_id, status, tax_country, tax_scenario, tags, tax_country_label_id, tax_scenario_label_id, tax_season_label_id, custom_label_ids, tax_season_year, due_at, created_at, updated_at')
       .eq('id', orderId)
       .maybeSingle();
     data = fallback.data;
@@ -387,7 +387,7 @@ export async function getOrderById(orderId: string): Promise<FirmOrderById | nul
     row.sku_id ? getSkuById(row.sku_id as string, row.id as string) : Promise.resolve(null),
     getOrderLabelNameMap(labelIds),
     supabase
-      .schema('firm')
+      .schema('provider')
       .from('order_managers')
       .select('manager_user_id')
       .eq('order_id', row.id)
@@ -425,13 +425,13 @@ export async function getOrderById(orderId: string): Promise<FirmOrderById | nul
 
   return {
     id: row.id,
-    firmSpaceId: row.firm_space_id,
-    clientSpaceId: row.client_space_id,
+    firmSpaceId: row.provider_space_id,
+    clientSpaceId: row.consumer_space_id,
     skuId: row.sku_id,
     status: row.status ?? 'onboarding',
     requestOrigin: row.request_origin ?? 'firm_manual',
-    clientConfirmedAt: row.client_confirmed_at ?? null,
-    firmConfirmedAt: row.firm_confirmed_at ?? null,
+    clientConfirmedAt: row.consumer_confirmed_at ?? null,
+    firmConfirmedAt: row.provider_confirmed_at ?? null,
     taxCountry: resolvedCountry,
     taxScenario: resolvedScenario,
     tags: resolvedTags,
@@ -451,7 +451,7 @@ export async function getOrderById(orderId: string): Promise<FirmOrderById | nul
   };
 }
 
-/** 根据 client_space_id 查客户展示名（用于订单详情顶栏 "Service for [client]"）；取自 space 名称 */
+/** 根据 consumer_space_id 查客户展示名（用于订单详情顶栏 "Service for [client]"）；取自 space 名称 */
 export async function getClientDisplayName(
   clientSpaceId: string,
   _firmSpaceId: string
@@ -523,7 +523,7 @@ export type FirmSkuHeader = {
   taxCountry?: string | null;
   taxScenario?: string | null;
   tags?: string[] | null;
-  /** 来自 firm.skus.firm_space_id；用于标签库与更新 custom_label_ids */
+  /** 来自 firm.skus.provider_space_id；用于标签库与更新 custom_label_ids */
   firmSpaceId?: string | null;
   isPublished?: boolean;
   templateStatus?: 'draft' | 'private' | 'published' | null;
@@ -531,10 +531,10 @@ export type FirmSkuHeader = {
 
 async function fetchSkuHeaderFromTable(skuId: string): Promise<FirmSkuHeader | null> {
   const { data, error } = await supabase
-    .schema('firm')
+    .schema('provider')
     .from('skus')
     .select(
-      'name, description, image_url, tax_country, tax_scenario, tags, custom_label_ids, firm_space_id, is_published, template_status',
+      'name, description, image_url, tax_country, tax_scenario, tags, custom_label_ids, provider_space_id, is_published, template_status',
     )
     .eq('id', skuId)
     .maybeSingle();
@@ -564,7 +564,7 @@ async function fetchSkuHeaderFromTable(skuId: string): Promise<FirmSkuHeader | n
     taxCountry: row.tax_country ?? null,
     taxScenario: row.tax_scenario ?? null,
     tags,
-    firmSpaceId: row.firm_space_id ?? null,
+    firmSpaceId: row.provider_space_id ?? null,
     isPublished: row.is_published ?? false,
     templateStatus: templateStatus ?? undefined,
   };
@@ -587,11 +587,11 @@ function mapSkuPreviewRpcRow(r: Record<string, unknown>): FirmSkuHeader {
   };
 }
 
-/** Client member of order.client_space: read SKU header despite firm.skus RLS (see get_firm_sku_preview_for_order_client). */
+/** Client member of order.client_space: read SKU header despite firm.skus RLS (see get_provider_sku_preview_for_order_consumer). */
 async function fetchSkuHeaderFromOrderClient(orderId: string): Promise<FirmSkuHeader | null> {
   const oid = (orderId ?? '').trim();
   if (!oid) return null;
-  const { data, error } = await supabase.rpc('get_firm_sku_preview_for_order_client', { p_order_id: oid });
+  const { data, error } = await supabase.rpc('get_provider_sku_preview_for_order_consumer', { p_order_id: oid });
   if (error) {
     if (typeof __DEV__ !== 'undefined' && __DEV__) {
       console.warn('fetchSkuHeaderFromOrderClient:', error);
@@ -608,9 +608,9 @@ async function fetchSkuHeaderFromRpc(
   firmClientId: string | null,
   inviteToken: string | null,
 ): Promise<FirmSkuHeader | null> {
-  const { data, error } = await supabase.rpc('get_firm_sku_preview_for_client', {
+  const { data, error } = await supabase.rpc('get_provider_sku_preview_for_consumer', {
     p_sku_id: skuId,
-    p_firm_client_id: firmClientId,
+    p_consumer_id: firmClientId,
     p_invite_token: inviteToken,
   });
 
@@ -714,7 +714,7 @@ export async function fetchSkuItemsForClientPreview(
   };
 
   const { data: directRows, error: directErr } = await supabase
-    .schema('firm')
+    .schema('provider')
     .from('sku_items')
     .select('*')
     .eq('sku_id', id);
@@ -723,7 +723,7 @@ export async function fetchSkuItemsForClientPreview(
   }
 
   if (orderId) {
-    const { data: ordData, error: ordErr } = await supabase.rpc('get_firm_sku_items_preview_for_order_client', {
+    const { data: ordData, error: ordErr } = await supabase.rpc('get_provider_sku_items_preview_for_order_consumer', {
       p_order_id: orderId,
     });
     if (!ordErr && ordData?.length) {
@@ -731,16 +731,16 @@ export async function fetchSkuItemsForClientPreview(
     }
   }
 
-  let { data, error } = await supabase.rpc('get_firm_sku_items_preview_for_client', {
+  let { data, error } = await supabase.rpc('get_provider_sku_items_preview_for_consumer', {
     p_sku_id: id,
-    p_firm_client_id: firmClientId,
+    p_consumer_id: firmClientId,
     p_invite_token: inviteToken,
   });
 
   if ((!data || !data.length) && (firmClientId != null || inviteToken != null)) {
-    const second = await supabase.rpc('get_firm_sku_items_preview_for_client', {
+    const second = await supabase.rpc('get_provider_sku_items_preview_for_consumer', {
       p_sku_id: id,
-      p_firm_client_id: null,
+      p_consumer_id: null,
       p_invite_token: null,
     });
     data = second.data;
@@ -761,10 +761,10 @@ export async function fetchSkuItemsForClientPreview(
 /** 客户端空间：获取本空间的所有订单；附带 sku 与 project（确认后有 project）用于展示 */
 export async function getClientOrdersForClientSpace(clientSpaceId: string): Promise<FirmOrderForClient[]> {
   const { data: ordersData, error: ordersErr } = await supabase
-    .schema('firm')
+    .schema('provider')
     .from('orders')
     .select('*')
-    .eq('client_space_id', clientSpaceId)
+    .eq('consumer_space_id', clientSpaceId)
     .order('created_at', { ascending: false });
 
   if (ordersErr || !ordersData?.length) {
@@ -776,7 +776,7 @@ export async function getClientOrdersForClientSpace(clientSpaceId: string): Prom
   const skuIds = Array.from(new Set(ordersData.map((o: any) => o.sku_id)));
 
   const [skusRes, projectsRes] = await Promise.all([
-    supabase.schema('firm').from('skus').select('id, name, description, image_url').in('id', skuIds),
+    supabase.schema('provider').from('skus').select('id, name, description, image_url').in('id', skuIds),
     supabase
       .from('projects')
       .select('id, order_id, name, description, image_url, tax_country, tax_scenario, tags, tax_season_year')
@@ -840,7 +840,7 @@ export async function getClientOrdersForClientSpace(clientSpaceId: string): Prom
     });
   }
 
-  const firmSpaceIds = Array.from(new Set((ordersData || []).map((o: any) => o.firm_space_id).filter(Boolean)));
+  const firmSpaceIds = Array.from(new Set((ordersData || []).map((o: any) => o.provider_space_id).filter(Boolean)));
   const spaceNameByFirmSpaceId: Record<string, string> = {};
   if (firmSpaceIds.length > 0) {
     const { data: spacesData } = await supabase.from('spaces').select('id, name').in('id', firmSpaceIds);
@@ -855,13 +855,13 @@ export async function getClientOrdersForClientSpace(clientSpaceId: string): Prom
     const counts = project ? todoCountByProjectId[project.id] : undefined;
     return {
       id: row.id,
-      firmSpaceId: row.firm_space_id,
-      clientSpaceId: row.client_space_id,
+      firmSpaceId: row.provider_space_id,
+      clientSpaceId: row.consumer_space_id,
       skuId: row.sku_id,
       status: row.status,
       requestOrigin: row.request_origin ?? 'firm_manual',
-      clientConfirmedAt: row.client_confirmed_at ?? null,
-      firmConfirmedAt: row.firm_confirmed_at ?? null,
+      clientConfirmedAt: row.consumer_confirmed_at ?? null,
+      firmConfirmedAt: row.provider_confirmed_at ?? null,
       dueAt: row.due_at ?? null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -875,8 +875,8 @@ export async function getClientOrdersForClientSpace(clientSpaceId: string): Prom
       projectImageUrl: project?.image_url ?? undefined,
       taskTotal: counts?.total,
       taskCompleted: counts?.completed,
-      firmName: spaceNameByFirmSpaceId[row.firm_space_id] || undefined,
-      hiddenFromClientAt: row.hidden_from_client_at ?? null,
+      firmName: spaceNameByFirmSpaceId[row.provider_space_id] || undefined,
+      hiddenFromClientAt: row.hidden_from_consumer_at ?? null,
       // 报税分类与税季：与 Firm 端 getFirmOrdersWithDetails 保持一致
       taxCountry: project?.tax_country ?? null,
       taxScenario: project?.tax_scenario ?? null,
@@ -888,27 +888,27 @@ export async function getClientOrdersForClientSpace(clientSpaceId: string): Prom
 
 /** Client-space member hides order from list (space-level; all members see the same). */
 export async function hideOrderForClientSpace(orderId: string): Promise<{ error: Error | null }> {
-  const { error } = await supabase.schema('firm').rpc('hide_order_for_client', { p_order_id: orderId });
+  const { error } = await supabase.schema('provider').rpc('hide_order_for_consumer', { p_order_id: orderId });
   if (error) return { error: new Error(error.message) };
   return { error: null };
 }
 
 /** Client-space member unhides order. */
 export async function unhideOrderForClientSpace(orderId: string): Promise<{ error: Error | null }> {
-  const { error } = await supabase.schema('firm').rpc('unhide_order_for_client', { p_order_id: orderId });
+  const { error } = await supabase.schema('provider').rpc('unhide_order_for_consumer', { p_order_id: orderId });
   if (error) return { error: new Error(error.message) };
   return { error: null };
 }
 
-/** Firm 空间：获取在服客户列表（含 pending：client_space_id 为空时名称在 invitee_* 列） */
+/** Firm 空间：获取在服客户列表（含 pending：consumer_space_id 为空时名称在 invitee_* 列） */
 export async function getFirmClients(firmSpaceId: string): Promise<FirmClient[]> {
   const { data, error } = await supabase
-    .schema('firm')
-    .from('clients')
+    .schema('provider')
+    .from('consumers')
     .select(
-      'id, firm_space_id, client_space_id, labels, created_at, updated_at, invitee_email, invitee_client_name, invitee_contact_name, creator_user_id'
+      'id, provider_space_id, consumer_space_id, labels, created_at, updated_at, invitee_email, invitee_consumer_name, invitee_contact_name, creator_user_id'
     )
-    .eq('firm_space_id', firmSpaceId)
+    .eq('provider_space_id', firmSpaceId)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -917,10 +917,10 @@ export async function getFirmClients(firmSpaceId: string): Promise<FirmClient[]>
   }
   return (data || []).map((row: any) => ({
     id: row.id,
-    firmSpaceId: row.firm_space_id,
-    clientSpaceId: row.client_space_id ?? '',
+    firmSpaceId: row.provider_space_id,
+    clientSpaceId: row.consumer_space_id ?? '',
     inviteeEmail: row.invitee_email ?? null,
-    inviteeClientName: row.invitee_client_name ?? null,
+    inviteeClientName: row.invitee_consumer_name ?? null,
     inviteeContactName: row.invitee_contact_name ?? null,
     creatorUserId: row.creator_user_id ?? null,
     labels: Array.isArray(row.labels) ? row.labels : [],
@@ -953,16 +953,16 @@ export interface FirmClientWithDetails extends FirmClient {
 
 /** One round-trip for orders used by client roster + counts (avoids a second full firm.orders fetch). */
 const FIRM_ORDERS_FOR_CLIENT_ROSTER_SELECT =
-  'id, client_space_id, client_id, status, due_at, created_at, updated_at';
+  'id, consumer_space_id, consumer_id, status, due_at, created_at, updated_at';
 
 /** Firm engagements list row — explicit columns instead of select('*'). */
 const FIRM_ORDER_LIST_SELECT =
-  'id, firm_space_id, client_space_id, client_id, sku_id, status, request_origin, client_confirmed_at, firm_confirmed_at, tax_country, tax_scenario, tags, tax_country_label_id, tax_scenario_label_id, tax_season_label_id, custom_label_ids, tax_season_year, due_at, created_at, updated_at, created_by';
+  'id, provider_space_id, consumer_space_id, consumer_id, sku_id, status, request_origin, consumer_confirmed_at, provider_confirmed_at, tax_country, tax_scenario, tags, tax_country_label_id, tax_scenario_label_id, tax_season_label_id, custom_label_ids, tax_season_year, due_at, created_at, updated_at, created_by';
 
 /** Single fetch: client rows + order count maps (replaces parallel getFirmOrders for Clients / Insights). */
 export type FirmClientsListBundle = {
   clients: FirmClientWithDetails[];
-  /** key: firm.clients.id (client_id in firm.orders) */
+  /** key: firm.clients.id (consumer_id in firm.orders) */
   orderCountByClient: Record<string, number>;
   orderCountByPendingClient: Record<string, number>;
   orderCountByStatus: Record<string, number>;
@@ -972,10 +972,10 @@ async function buildFirmClientsListBundle(firmSpaceId: string): Promise<FirmClie
   const [clients, ordersAll] = await Promise.all([
     getFirmClients(firmSpaceId),
     supabase
-      .schema('firm')
+      .schema('provider')
       .from('orders')
       .select(FIRM_ORDERS_FOR_CLIENT_ROSTER_SELECT)
-      .eq('firm_space_id', firmSpaceId),
+      .eq('provider_space_id', firmSpaceId),
   ]);
   const ordersData = ordersAll.data || [];
 
@@ -983,10 +983,10 @@ async function buildFirmClientsListBundle(firmSpaceId: string): Promise<FirmClie
   const orderCountByPendingClient: Record<string, number> = {};
   const orderCountByStatus: Record<string, number> = {};
   ordersData.forEach((o: any) => {
-    if (o.client_id) {
-      orderCountByClient[o.client_id] = (orderCountByClient[o.client_id] ?? 0) + 1;
-      // keep compatibility: pending map now follows the same client_id keying
-      orderCountByPendingClient[o.client_id] = (orderCountByPendingClient[o.client_id] ?? 0) + 1;
+    if (o.consumer_id) {
+      orderCountByClient[o.consumer_id] = (orderCountByClient[o.consumer_id] ?? 0) + 1;
+      // keep compatibility: pending map now follows the same consumer_id keying
+      orderCountByPendingClient[o.consumer_id] = (orderCountByPendingClient[o.consumer_id] ?? 0) + 1;
     }
     const st = (o.status ?? 'unknown') as string;
     orderCountByStatus[st] = (orderCountByStatus[st] ?? 0) + 1;
@@ -994,7 +994,7 @@ async function buildFirmClientsListBundle(firmSpaceId: string): Promise<FirmClie
 
   const pendingInviteeIds = new Set<string>();
   ordersData.forEach((o: any) => {
-    if (o.client_space_id == null && o.client_id) pendingInviteeIds.add(o.client_id);
+    if (o.consumer_space_id == null && o.consumer_id) pendingInviteeIds.add(o.consumer_id);
   });
   const pendingInvitees = clients.filter((c) => !c.clientSpaceId && pendingInviteeIds.has(c.id));
 
@@ -1016,12 +1016,12 @@ async function buildFirmClientsListBundle(firmSpaceId: string): Promise<FirmClie
   const [spacesRes, userSpacesRes, orderManagersRes, followUpsRes] = await Promise.all([
     spaceIds.length > 0 ? supabase.from('spaces').select('id, name').in('id', spaceIds) : Promise.resolve({ data: [] as any[] }),
     spaceIds.length > 0 ? supabase.from('user_spaces').select('space_id, user_id, is_admin').in('space_id', spaceIds) : Promise.resolve({ data: [] as any[] }),
-    supabase.schema('firm').from('order_managers').select('order_id, manager_user_id').eq('firm_space_id', firmSpaceId),
+    supabase.schema('provider').from('order_managers').select('order_id, manager_user_id').eq('provider_space_id', firmSpaceId),
     supabase
-      .schema('firm')
-      .from('client_follow_ups')
-      .select('client_space_id, client_id, firm_space_id, created_at')
-      .eq('firm_space_id', firmSpaceId),
+      .schema('provider')
+      .from('consumer_follow_ups')
+      .select('consumer_space_id, consumer_id, provider_space_id, created_at')
+      .eq('provider_space_id', firmSpaceId),
   ]);
 
   const orderIdToManagerId: Record<string, string> = {};
@@ -1050,8 +1050,8 @@ async function buildFirmClientsListBundle(firmSpaceId: string): Promise<FirmClie
 
   const orders: OrderForStatus[] = ordersData.map((r: any) => ({
     id: r.id,
-    clientSpaceId: r.client_space_id,
-    clientId: r.client_id ?? null,
+    clientSpaceId: r.consumer_space_id,
+    clientId: r.consumer_id ?? null,
     status: r.status,
     dueAt: r.due_at,
     createdAt: r.created_at,
@@ -1082,9 +1082,9 @@ async function buildFirmClientsListBundle(firmSpaceId: string): Promise<FirmClie
   orders.forEach((o: any) => {
     const managerId = orderIdToManagerId[o.id] ?? null;
     const orderAt = o.updatedAt || o.createdAt || '';
-    // primary key: client_id
+    // primary key: consumer_id
     updateLatestManager(o.clientId ?? null, managerId, orderAt);
-    // legacy fallback key: client_space_id (for rows without client_id)
+    // legacy fallback key: consumer_space_id (for rows without consumer_id)
     if (!o.clientId && o.clientSpaceId) {
       updateLatestManager(`space:${o.clientSpaceId}`, managerId, orderAt);
     }
@@ -1096,12 +1096,12 @@ async function buildFirmClientsListBundle(firmSpaceId: string): Promise<FirmClie
   (followUpsRes.data || []).forEach((fu: any) => {
     const createdAt: string | null = fu.created_at ?? null;
     if (!createdAt) return;
-    if (fu.client_space_id) {
-      const csId = fu.client_space_id;
+    if (fu.consumer_space_id) {
+      const csId = fu.consumer_space_id;
       const prev = clientSpaceToLastFollowUp[csId];
       if (!prev || new Date(createdAt) > new Date(prev)) clientSpaceToLastFollowUp[csId] = createdAt;
     }
-    const pendFollowId = fu.client_id;
+    const pendFollowId = fu.consumer_id;
     if (pendFollowId) {
       const prev = inviteeToLastFollowUp[pendFollowId];
       if (!prev || new Date(createdAt) > new Date(prev)) inviteeToLastFollowUp[pendFollowId] = createdAt;
@@ -1215,12 +1215,12 @@ export async function getFirmOrders(
   firmClientId?: string
 ): Promise<FirmOrder[]> {
   let q = supabase
-    .schema('firm')
+    .schema('provider')
     .from('orders')
     .select(FIRM_ORDER_LIST_SELECT)
-    .eq('firm_space_id', firmSpaceId);
-  if (clientSpaceId) q = q.eq('client_space_id', clientSpaceId);
-  if (firmClientId) q = q.eq('client_id', firmClientId);
+    .eq('provider_space_id', firmSpaceId);
+  if (clientSpaceId) q = q.eq('consumer_space_id', clientSpaceId);
+  if (firmClientId) q = q.eq('consumer_id', firmClientId);
   const { data, error } = await q.order('due_at', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false });
 
   if (error) {
@@ -1229,14 +1229,14 @@ export async function getFirmOrders(
   }
   return (data || []).map((row: any) => ({
     id: row.id,
-    firmSpaceId: row.firm_space_id,
-    clientSpaceId: row.client_space_id,
-    clientId: row.client_id ?? null,
+    firmSpaceId: row.provider_space_id,
+    clientSpaceId: row.consumer_space_id,
+    clientId: row.consumer_id ?? null,
     skuId: row.sku_id,
     status: row.status,
     requestOrigin: row.request_origin ?? 'firm_manual',
-    clientConfirmedAt: row.client_confirmed_at ?? null,
-    firmConfirmedAt: row.firm_confirmed_at ?? null,
+    clientConfirmedAt: row.consumer_confirmed_at ?? null,
+    firmConfirmedAt: row.provider_confirmed_at ?? null,
     taxCountry: row.tax_country ?? null,
     taxScenario: row.tax_scenario ?? null,
     tags: Array.isArray(row.tags) ? (row.tags as string[]) : [],
@@ -1293,7 +1293,7 @@ export async function getFirmOrdersWithDetails(
   const [managerRowsRes] = await Promise.all([
     managerOrderIds.length > 0
       ? supabase
-          .schema('firm')
+          .schema('provider')
           .from('order_managers')
           .select('order_id, manager_user_id')
           .in('order_id', managerOrderIds)
@@ -1312,14 +1312,14 @@ export async function getFirmOrdersWithDetails(
   const displayUserIds = [...new Set([...createdByIds, ...managerUserIds])];
   const [spacesRes, skusRes, pendingClientsRes] = await Promise.all([
     clientSpaceIds.length > 0 ? supabase.from('spaces').select('id, name').in('id', clientSpaceIds) : Promise.resolve({ data: [] as any[] }),
-    supabase.schema('firm').from('skus').select('id, name').in('id', skuIds),
+    supabase.schema('provider').from('skus').select('id, name').in('id', skuIds),
     pendingClientIds.length > 0
       ? supabase
-          .schema('firm')
-          .from('clients')
-          .select('id, invitee_client_name, invitee_contact_name, invitee_email')
+          .schema('provider')
+          .from('consumers')
+          .select('id, invitee_consumer_name, invitee_contact_name, invitee_email')
           .in('id', pendingClientIds)
-          .is('client_space_id', null)
+          .is('consumer_space_id', null)
       : Promise.resolve({ data: [] as any[] }),
   ]);
 
@@ -1342,7 +1342,7 @@ export async function getFirmOrdersWithDetails(
   });
   const pendingClientMap: Record<string, { name: string; email: string }> = {};
   (pendingClientsRes.data || []).forEach((row: any) => {
-    const name = row.invitee_client_name || row.invitee_contact_name || row.invitee_email || 'Pending';
+    const name = row.invitee_consumer_name || row.invitee_contact_name || row.invitee_email || 'Pending';
     pendingClientMap[row.id] = { name, email: row.invitee_email || '' };
   });
   const skuMap: Record<string, string> = {};
@@ -1407,11 +1407,11 @@ export async function updateFirmOrderManager(
   managerUserId: string
 ): Promise<{ error: Error | null }> {
   const { error } = await supabase
-    .schema('firm')
+    .schema('provider')
     .from('order_managers')
     .upsert(
       {
-        firm_space_id: firmSpaceId,
+        provider_space_id: firmSpaceId,
         order_id: orderId,
         manager_user_id: managerUserId,
         created_at: new Date().toISOString(),
@@ -1460,7 +1460,7 @@ export async function updateOrderClassificationByLabelNames(
     };
 
     const { data, error } = await supabase
-      .schema('firm')
+      .schema('provider')
       .from('orders')
       .update(updates)
       .eq('id', params.orderId)
@@ -1472,7 +1472,7 @@ export async function updateOrderClassificationByLabelNames(
 
     // Read-after-write verification to avoid false "Saved" on silent policy mismatches.
     const { data: verifyRow, error: verifyErr } = await supabase
-      .schema('firm')
+      .schema('provider')
       .from('orders')
       .select('tax_country_label_id, tax_scenario_label_id, tax_season_label_id, custom_label_ids')
       .eq('id', params.orderId)
@@ -1507,8 +1507,8 @@ export async function createFirmOrder(
   skuId: string,
   dueAt: string | null = null
 ): Promise<{ id: string | null; error: Error | null }> {
-  const { error: capErr } = await supabase.schema('crm').rpc('assert_firm_can_create_engagement', {
-    p_firm_space_id: firmSpaceId,
+  const { error: capErr } = await supabase.schema('crm').rpc('assert_provider_can_create_engagement', {
+    p_provider_space_id: firmSpaceId,
   });
   if (capErr) {
     const msg = capErr.message || '';
@@ -1534,11 +1534,11 @@ export async function createFirmOrder(
   const { data: user } = await supabase.auth.getUser();
 
   const { data, error } = await supabase
-    .schema('firm')
+    .schema('provider')
     .from('orders')
     .insert({
-      firm_space_id: firmSpaceId,
-      client_space_id: clientSpaceId,
+      provider_space_id: firmSpaceId,
+      consumer_space_id: clientSpaceId,
       sku_id: skuId,
       status: 'onboarding',
       due_at: dueAt,
@@ -1558,7 +1558,7 @@ export async function confirmOrderAndCreateProjectTodos(
   orderId: string
 ): Promise<{ error: Error | null }> {
   const { data: order, error: orderErr } = await supabase
-    .schema('firm')
+    .schema('provider')
     .from('orders')
     .select('*')
     .eq('id', orderId)
@@ -1574,28 +1574,28 @@ export async function confirmOrderAndCreateProjectTodos(
     return { error: null };
   }
 
-  // Marketplace 自助单：client 同意后仅记录 client_confirmed_at，需 firm 侧再次确认才能进入 processing。
+  // Marketplace 自助单：client 同意后仅记录 consumer_confirmed_at，需 firm 侧再次确认才能进入 processing。
   const uid = (await supabase.auth.getUser()).data.user?.id ?? null;
   let isFirmMember = false;
   let isClientMember = false;
   if (uid) {
-    const candidateSpaceIds = [String((order as any).firm_space_id)];
-    if ((order as any).client_space_id) candidateSpaceIds.push(String((order as any).client_space_id));
+    const candidateSpaceIds = [String((order as any).provider_space_id)];
+    if ((order as any).consumer_space_id) candidateSpaceIds.push(String((order as any).consumer_space_id));
     const { data: membershipRows } = await supabase
       .from('user_spaces')
       .select('space_id')
       .eq('user_id', uid)
       .in('space_id', candidateSpaceIds);
     const membershipSet = new Set((membershipRows || []).map((r: any) => String(r.space_id)));
-    isFirmMember = membershipSet.has(String((order as any).firm_space_id));
-    isClientMember = !!((order as any).client_space_id && membershipSet.has(String((order as any).client_space_id)));
+    isFirmMember = membershipSet.has(String((order as any).provider_space_id));
+    isClientMember = !!((order as any).consumer_space_id && membershipSet.has(String((order as any).consumer_space_id)));
   }
   const requiresFirmConfirmation =
     String((order as any).request_origin ?? 'firm_manual') === 'client_marketplace';
   const deferToFirmConfirmation = requiresFirmConfirmation && isClientMember && !isFirmMember;
 
   const { data: sku, error: skuErr } = await supabase
-    .schema('firm')
+    .schema('provider')
     .from('skus')
     .select('id, name, description, image_url, tax_country, tax_scenario')
     .eq('id', order.sku_id)
@@ -1605,7 +1605,7 @@ export async function confirmOrderAndCreateProjectTodos(
     return { error: skuErr ? new Error(skuErr.message) : new Error('SKU not found') };
   }
 
-  const { error: capConfirmErr } = await supabase.schema('crm').rpc('assert_firm_can_confirm_engagement', {
+  const { error: capConfirmErr } = await supabase.schema('crm').rpc('assert_provider_can_confirm_engagement', {
     p_order_id: orderId,
   });
   if (capConfirmErr) {
@@ -1637,9 +1637,9 @@ export async function confirmOrderAndCreateProjectTodos(
   const { data: projectRow, error: projectErr } = await supabase
     .from('projects')
     .insert({
-      firm_space_id: (order as any).firm_space_id,
-      // 对于 pending orders，client_space_id 可为空；迁移后会补上真实 client_space_id
-      client_space_id: (order as any).client_space_id ?? null,
+      provider_space_id: (order as any).provider_space_id,
+      // 对于 pending orders，consumer_space_id 可为空；迁移后会补上真实 consumer_space_id
+      consumer_space_id: (order as any).consumer_space_id ?? null,
       order_id: order.id,
       name: (sku as any).name ?? 'Project',
       description: (sku as any).description ?? null,
@@ -1676,28 +1676,28 @@ export async function confirmOrderAndCreateProjectTodos(
   if ((existingTodoRows?.length ?? 0) > 0) {
     if (deferToFirmConfirmation) {
       const { error: markErr } = await supabase
-        .schema('firm')
+        .schema('provider')
         .from('orders')
         .update({
-          client_confirmed_at: (order as any).client_confirmed_at ?? new Date().toISOString(),
+          consumer_confirmed_at: (order as any).consumer_confirmed_at ?? new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
         .eq('id', orderId);
       return { error: markErr ? new Error(markErr.message) : null };
     }
     const patch: Record<string, any> = {};
-    if (requiresFirmConfirmation && isFirmMember && !(order as any).firm_confirmed_at) {
-      patch.firm_confirmed_at = new Date().toISOString();
+    if (requiresFirmConfirmation && isFirmMember && !(order as any).provider_confirmed_at) {
+      patch.provider_confirmed_at = new Date().toISOString();
     }
     if (Object.keys(patch).length > 0) {
-      await supabase.schema('firm').from('orders').update(patch).eq('id', orderId);
+      await supabase.schema('provider').from('orders').update(patch).eq('id', orderId);
     }
     const { error: updateErr } = await updateOrderStatus(orderId, 'processing');
     return { error: updateErr };
   }
 
   const { data: items, error: itemsErr } = await supabase
-    .schema('firm')
+    .schema('provider')
     .from('sku_items')
     .select('*')
     .eq('sku_id', order.sku_id);
@@ -1775,21 +1775,21 @@ export async function confirmOrderAndCreateProjectTodos(
 
   if (deferToFirmConfirmation) {
     const { error: markErr } = await supabase
-      .schema('firm')
+      .schema('provider')
       .from('orders')
       .update({
-        client_confirmed_at: (order as any).client_confirmed_at ?? new Date().toISOString(),
+        consumer_confirmed_at: (order as any).consumer_confirmed_at ?? new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq('id', orderId);
     return { error: markErr ? new Error(markErr.message) : null };
   }
 
-  if (requiresFirmConfirmation && isFirmMember && !(order as any).firm_confirmed_at) {
+  if (requiresFirmConfirmation && isFirmMember && !(order as any).provider_confirmed_at) {
     await supabase
-      .schema('firm')
+      .schema('provider')
       .from('orders')
-      .update({ firm_confirmed_at: new Date().toISOString() })
+      .update({ provider_confirmed_at: new Date().toISOString() })
       .eq('id', orderId);
   }
   const { error: updateErr } = await updateOrderStatus(orderId, 'processing');
@@ -1847,7 +1847,7 @@ async function touchFirmOrderUpdatedAt(orderId: string | null | undefined): Prom
   if (!orderId) return;
   try {
     await supabase
-      .schema('firm')
+      .schema('provider')
       .from('orders')
       .update({ updated_at: new Date().toISOString() })
       .eq('id', orderId);
@@ -2074,29 +2074,29 @@ export interface FirmProjectSummary {
   createdAt?: string;
 }
 
-/** Firm 空间：项目列表（按 firm_space_id 直接查 public.projects，带统计） */
+/** Firm 空间：项目列表（按 provider_space_id 直接查 public.projects，带统计） */
 export async function getFirmProjects(
   firmSpaceId: string,
   filters?: { status?: string; clientSpaceId?: string }
 ): Promise<FirmProjectSummary[]> {
   let q = supabase
     .from('projects')
-    .select('id, order_id, firm_space_id, client_space_id, name, description, image_url, status, start_at, end_at, created_at')
-    .eq('firm_space_id', firmSpaceId);
-  if (filters?.clientSpaceId) q = q.eq('client_space_id', filters.clientSpaceId);
+    .select('id, order_id, provider_space_id, consumer_space_id, name, description, image_url, status, start_at, end_at, created_at')
+    .eq('provider_space_id', firmSpaceId);
+  if (filters?.clientSpaceId) q = q.eq('consumer_space_id', filters.clientSpaceId);
   const { data: projects, error: projErr } = await q.order('created_at', { ascending: false });
   if (projErr || !projects?.length) return [];
   const projectIds = (projects as any[]).map((p) => p.id);
   const orders = await getFirmOrders(firmSpaceId, filters?.clientSpaceId);
   const [todosRes, spacesRes] = await Promise.all([
     supabase.from('project_todos').select('project_id, status, item_kind').in('project_id', projectIds),
-    (projects as any[]).some((p) => p.client_space_id)
-      ? supabase.from('spaces').select('id, name').in('id', [...new Set((projects as any[]).map((p) => p.client_space_id).filter(Boolean))])
+    (projects as any[]).some((p) => p.consumer_space_id)
+      ? supabase.from('spaces').select('id, name').in('id', [...new Set((projects as any[]).map((p) => p.consumer_space_id).filter(Boolean))])
       : Promise.resolve({ data: [] as any[] }),
   ]);
   const orderMap = new Map(orders.map((o) => [o.id, o]));
   const skuIds = [...new Set(orders.map((o) => o.skuId))];
-  const { data: skuData } = await supabase.schema('firm').from('skus').select('id, name').in('id', skuIds);
+  const { data: skuData } = await supabase.schema('provider').from('skus').select('id, name').in('id', skuIds);
   const skuNameById: Record<string, string> = {};
   (skuData || []).forEach((s: any) => { skuNameById[s.id] = s.name ?? ''; });
   const clientNameBySpace: Record<string, string> = {};
@@ -2115,9 +2115,9 @@ export async function getFirmProjects(
     return {
       projectId: p.id,
       orderId: p.order_id,
-      firmSpaceId: p.firm_space_id ?? '',
-      clientSpaceId: p.client_space_id ?? '',
-      clientName: clientNameBySpace[p.client_space_id],
+      firmSpaceId: p.provider_space_id ?? '',
+      clientSpaceId: p.consumer_space_id ?? '',
+      clientName: clientNameBySpace[p.consumer_space_id],
       skuId: order?.skuId ?? '',
       skuName: order?.skuId ? skuNameById[order.skuId] : undefined,
       name: p.name ?? '',
@@ -2163,7 +2163,7 @@ export async function getProjectDetail(
     order.clientSpaceId && order.firmSpaceId
       ? getClientDisplayName(order.clientSpaceId, order.firmSpaceId)
       : Promise.resolve(null),
-    supabase.schema('firm').from('skus').select('name').eq('id', order.skuId).maybeSingle(),
+    supabase.schema('provider').from('skus').select('name').eq('id', order.skuId).maybeSingle(),
   ]);
   const clientName = clientNameRaw ?? undefined;
   const skuName = (skuRes.data as any)?.name as string | undefined;
@@ -2226,7 +2226,7 @@ export async function getSpaceProjectTags(clientSpaceId: string): Promise<string
   const { data: orders } = await supabase
     .from('orders')
     .select('id')
-    .eq('client_space_id', clientSpaceId);
+    .eq('consumer_space_id', clientSpaceId);
   const orderIds = (orders as any[] | null)?.map((o) => o.id) ?? [];
   if (orderIds.length === 0) return [];
 
@@ -2721,7 +2721,7 @@ export async function getProjectTodoAttachmentWithContext(attachmentId: string):
   const projectId = (todo as any).project_id;
   const { data: proj, error: projErr } = await supabase
     .from('projects')
-    .select('client_space_id, tax_country, tax_scenario, tags, tax_season_year')
+    .select('consumer_space_id, tax_country, tax_scenario, tags, tax_season_year')
     .eq('id', projectId)
     .maybeSingle();
   if (projErr || !proj) return null;
@@ -2750,7 +2750,7 @@ export async function getProjectTodoAttachmentWithContext(attachmentId: string):
   return {
     attachment: { id: (att as any).id, attachment_url: (att as any).attachment_url, status: (att as any).status },
     project: {
-      clientSpaceId: typeof p.client_space_id === 'string' ? p.client_space_id : null,
+      clientSpaceId: typeof p.consumer_space_id === 'string' ? p.consumer_space_id : null,
       taxCountry: p.tax_country ?? null,
       taxScenario: p.tax_scenario ?? null,
       tags: Array.isArray(p.tags) ? (p.tags as string[]) : [],
@@ -2818,10 +2818,10 @@ export async function getFirmClientTodos(
 /** Firm 空间：获取服务 SKU 列表 */
 export async function getFirmSkus(firmSpaceId: string): Promise<FirmSku[]> {
   const { data, error } = await supabase
-    .schema('firm')
+    .schema('provider')
     .from('skus')
     .select('*')
-    .eq('firm_space_id', firmSpaceId)
+    .eq('provider_space_id', firmSpaceId)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -2835,7 +2835,7 @@ export async function getFirmSkus(firmSpaceId: string): Promise<FirmSku[]> {
   const skuIds = rows.map((r: any) => r.id).filter(Boolean);
   if (skuIds.length > 0) {
     const { data: items, error: itemsErr } = await supabase
-      .schema('firm')
+      .schema('provider')
       .from('sku_items')
       .select('sku_id')
       .in('sku_id', skuIds);
@@ -2856,7 +2856,7 @@ export async function getFirmSkus(firmSpaceId: string): Promise<FirmSku[]> {
     const templateStatus = row.template_status === 'draft' || row.template_status === 'private' || row.template_status === 'published' ? row.template_status : null;
     return {
       id: row.id,
-      firmSpaceId: row.firm_space_id,
+      firmSpaceId: row.provider_space_id,
       name: row.name,
       description: row.description ?? undefined,
       imageUrl: row.image_url ?? null,
@@ -2874,7 +2874,7 @@ export async function getFirmSkus(firmSpaceId: string): Promise<FirmSku[]> {
 
 /** Client：跨事务所已发布的服务模板列表（RPC；需当前用户属于某 client 空间） */
 export async function getPublishedSkusForClientCatalog(): Promise<FirmSku[]> {
-  const { data, error } = await supabase.schema('firm').rpc('list_published_skus_for_client_catalog');
+  const { data, error } = await supabase.schema('provider').rpc('list_published_skus_for_consumer_catalog');
   if (error) {
     console.error('getPublishedSkusForClientCatalog:', error);
     return [];
@@ -2891,7 +2891,7 @@ export async function getPublishedSkusForClientCatalog(): Promise<FirmSku[]> {
     }
     return {
       id: String(row.id),
-      firmSpaceId: String(row.firm_space_id),
+      firmSpaceId: String(row.provider_space_id),
       firmName: row.firm_name != null ? String(row.firm_name) : null,
       name: String(row.name ?? '—'),
       description: row.description ? String(row.description) : undefined,
@@ -2913,8 +2913,8 @@ export async function clientCreateOnboardingOrderFromPublishedSku(
   clientSpaceId: string,
   skuId: string,
 ): Promise<{ orderId: string | null; error: Error | null }> {
-  const { data, error } = await supabase.schema('firm').rpc('client_create_onboarding_order_from_published_sku', {
-    p_client_space_id: clientSpaceId,
+  const { data, error } = await supabase.schema('provider').rpc('consumer_create_onboarding_order_from_published_sku', {
+    p_consumer_space_id: clientSpaceId,
     p_sku_id: skuId,
   });
   if (error) {
@@ -2928,7 +2928,7 @@ export async function clientCreateOnboardingOrderFromPublishedSku(
 export async function deleteFirmSku(firmSkuId: string): Promise<void> {
   // 先删 sku_items，再删 skus（即使数据库有 ON DELETE CASCADE，这里也显式清理，避免残留）
   const { error: itemsErr } = await supabase
-    .schema('firm')
+    .schema('provider')
     .from('sku_items')
     .delete()
     .eq('sku_id', firmSkuId);
@@ -2937,7 +2937,7 @@ export async function deleteFirmSku(firmSkuId: string): Promise<void> {
   }
 
   const { error } = await supabase
-    .schema('firm')
+    .schema('provider')
     .from('skus')
     .delete()
     .eq('id', firmSkuId);
@@ -2975,16 +2975,16 @@ export async function updateFirmSku(
   if (payload.taxScenario !== undefined) updates.tax_scenario = payload.taxScenario;
   if (payload.tags !== undefined) {
     const { data: skuRow, error: skuSelErr } = await supabase
-      .schema('firm')
+      .schema('provider')
       .from('skus')
-      .select('firm_space_id')
+      .select('provider_space_id')
       .eq('id', skuId)
       .maybeSingle();
     if (skuSelErr) {
-      console.error('updateFirmSku firm_space_id:', skuSelErr);
+      console.error('updateFirmSku provider_space_id:', skuSelErr);
       return { error: new Error(skuSelErr.message) };
     }
-    const firmSpaceId = (skuRow as { firm_space_id?: string } | null)?.firm_space_id;
+    const firmSpaceId = (skuRow as { provider_space_id?: string } | null)?.provider_space_id;
     if (!firmSpaceId) {
       return { error: new Error('SKU not found or missing firm space') };
     }
@@ -3005,7 +3005,7 @@ export async function updateFirmSku(
     }
   }
   const { error } = await supabase
-    .schema('firm')
+    .schema('provider')
     .from('skus')
     .update(updates)
     .eq('id', skuId);
@@ -3017,13 +3017,13 @@ export async function updateFirmSku(
 }
 
 /** 将预设 SKU（preset_skus + preset_sku_items）复制到指定 firm 空间；仅该空间成员可调用。
- * 当前 DB 为单参数 apply_preset_skus_to_firm(p_firm_space_id)，复制全部 preset 行；locale 保留供日后多语言版本使用。 */
+ * 当前 DB 为单参数 apply_preset_skus_to_provider(p_provider_space_id)，复制全部 preset 行；locale 保留供日后多语言版本使用。 */
 export async function applyPresetSkusToFirm(
   firmSpaceId: string,
   _locale?: 'zh' | 'en'
 ): Promise<{ error: Error | null }> {
-  const { error } = await supabase.rpc('apply_preset_skus_to_firm', {
-    p_firm_space_id: firmSpaceId,
+  const { error } = await supabase.rpc('apply_preset_skus_to_provider', {
+    p_provider_space_id: firmSpaceId,
   });
   if (error) {
     console.error('applyPresetSkusToFirm:', error);
@@ -3056,7 +3056,7 @@ export async function getSkuItems(skuId: string, forOrderId?: string | null): Pr
   };
 
   const { data, error } = await supabase
-    .schema('firm')
+    .schema('provider')
     .from('sku_items')
     .select('*')
     .eq('sku_id', skuId);
@@ -3090,16 +3090,16 @@ export async function getSkuItems(skuId: string, forOrderId?: string | null): Pr
   if (!id) return [];
   const oid = (forOrderId ?? '').trim();
   if (oid) {
-    const { data: ordData, error: ordErr } = await supabase.rpc('get_firm_sku_items_preview_for_order_client', {
+    const { data: ordData, error: ordErr } = await supabase.rpc('get_provider_sku_items_preview_for_order_consumer', {
       p_order_id: oid,
     });
     if (!ordErr && ordData?.length) {
       return sortSkuItemsDepthFirst((ordData as Record<string, unknown>[]).map(mapRpcRowToItem));
     }
   }
-  const { data: rpcData, error: rpcErr } = await supabase.rpc('get_firm_sku_items_preview_for_client', {
+  const { data: rpcData, error: rpcErr } = await supabase.rpc('get_provider_sku_items_preview_for_consumer', {
     p_sku_id: id,
-    p_firm_client_id: null,
+    p_consumer_id: null,
     p_invite_token: null,
   });
   if (rpcErr || !rpcData?.length) {
@@ -3120,7 +3120,7 @@ export async function updateSkuItemDependsOn(
 ): Promise<{ error: Error | null }> {
   const ids = dependsOnIds?.length ? dependsOnIds : [];
   const { error } = await supabase
-    .schema('firm')
+    .schema('provider')
     .from('sku_items')
     .update({
       depends_on_ids: ids,
@@ -3142,12 +3142,12 @@ export async function createSkuItem(params: {
   description?: string | null;
 }): Promise<{ id: string | null; error: Error | null }> {
   // 取同级末尾 sort_order
-  const q = supabase.schema('firm').from('sku_items').select('sort_order').eq('sku_id', params.skuId);
+  const q = supabase.schema('provider').from('sku_items').select('sort_order').eq('sku_id', params.skuId);
   if (params.parentId) q.eq('parent_id', params.parentId); else q.is('parent_id', null);
   const { data: siblings } = await q.order('sort_order', { ascending: false }).limit(1).maybeSingle();
   const sortOrder = (siblings as any)?.sort_order != null ? (siblings as any).sort_order + 1 : 1;
 
-  const { data, error } = await supabase.schema('firm').from('sku_items').insert({
+  const { data, error } = await supabase.schema('provider').from('sku_items').insert({
     sku_id: params.skuId,
     parent_id: params.parentId ?? null,
     item_kind: params.itemKind,
@@ -3182,7 +3182,7 @@ export async function updateSkuItem(
   if (payload.itemKind !== undefined) updates.item_kind = payload.itemKind;
   if (payload.sortOrder !== undefined) updates.sort_order = payload.sortOrder;
   if (payload.parentId !== undefined) updates.parent_id = payload.parentId;
-  const { error } = await supabase.schema('firm').from('sku_items').update(updates).eq('id', itemId);
+  const { error } = await supabase.schema('provider').from('sku_items').update(updates).eq('id', itemId);
   if (error) {
     console.error('updateSkuItem:', error);
     return { error: error as Error };
@@ -3207,7 +3207,7 @@ export async function applySkuItemsTreeOrder(
 
   for (const r of rows) {
     const { error } = await supabase
-      .schema('firm')
+      .schema('provider')
       .from('sku_items')
       .update({
         parent_id: r.parent_id,
@@ -3223,7 +3223,7 @@ export async function applySkuItemsTreeOrder(
 
 /** 删除 SKU item（会级联删除子节点，由数据库 ON DELETE CASCADE 保证） */
 export async function deleteSkuItem(itemId: string): Promise<{ error: Error | null }> {
-  const { error } = await supabase.schema('firm').from('sku_items').delete().eq('id', itemId);
+  const { error } = await supabase.schema('provider').from('sku_items').delete().eq('id', itemId);
   if (error) {
     console.error('deleteSkuItem:', error);
     return { error: error as Error };
@@ -3238,7 +3238,7 @@ export async function getFirmTemplates(firmSpaceId: string): Promise<FirmTemplat
 
   const skuIds = skus.map((s) => s.id);
   const { data: itemsData } = await supabase
-    .schema('firm')
+    .schema('provider')
     .from('sku_items')
     .select('id, sku_id, parent_id, sort_order, title, description')
     .in('sku_id', skuIds);
@@ -3274,12 +3274,12 @@ export async function getFirmClientFollowUps(
   firmClientId?: string
 ): Promise<FirmClientFollowUp[]> {
   let q = supabase
-    .schema('firm')
-    .from('client_follow_ups')
+    .schema('provider')
+    .from('consumer_follow_ups')
     .select('*')
-    .eq('firm_space_id', firmSpaceId);
-  if (firmClientId) q = q.eq('client_id', firmClientId);
-  else if (clientSpaceId) q = q.eq('client_space_id', clientSpaceId);
+    .eq('provider_space_id', firmSpaceId);
+  if (firmClientId) q = q.eq('consumer_id', firmClientId);
+  else if (clientSpaceId) q = q.eq('consumer_space_id', clientSpaceId);
   const { data, error } = await q.order('created_at', { ascending: false });
 
   if (error) {
@@ -3288,9 +3288,9 @@ export async function getFirmClientFollowUps(
   }
   return (data || []).map((row: any) => ({
     id: row.id,
-    firmSpaceId: row.firm_space_id,
-    clientSpaceId: row.client_space_id ?? '',
-    firmClientId: row.client_id ?? null,
+    firmSpaceId: row.provider_space_id,
+    clientSpaceId: row.consumer_space_id ?? '',
+    firmClientId: row.consumer_id ?? null,
     content: row.content ?? '',
     kind: (row.kind ?? 'note') as FirmClientFollowUp['kind'],
     referenceId: row.reference_id ?? null,
@@ -3299,7 +3299,7 @@ export async function getFirmClientFollowUps(
   }));
 }
 
-/** Firm 空间：新增跟进。已认领写 client_space_id；待认领写 firmClientId（firm.clients.id）。 */
+/** Firm 空间：新增跟进。已认领写 consumer_space_id；待认领写 firmClientId（firm.clients.id）。 */
 export async function addFirmClientFollowUp(
   firmSpaceId: string,
   clientSpaceId: string,
@@ -3308,19 +3308,19 @@ export async function addFirmClientFollowUp(
 ): Promise<{ id: string | null; error: Error | null }> {
   const { data: user } = await supabase.auth.getUser();
   const payload: Record<string, unknown> = {
-    firm_space_id: firmSpaceId,
+    provider_space_id: firmSpaceId,
     content: (content || '').trim(),
     kind: 'note',
     created_by: user.user?.id ?? null,
   };
   if (firmClientId) {
-    payload.client_id = firmClientId;
+    payload.consumer_id = firmClientId;
   } else {
-    payload.client_space_id = clientSpaceId;
+    payload.consumer_space_id = clientSpaceId;
   }
   const { data, error } = await supabase
-    .schema('firm')
-    .from('client_follow_ups')
+    .schema('provider')
+    .from('consumer_follow_ups')
     .insert(payload)
     .select('id')
     .single();
@@ -3335,8 +3335,8 @@ export async function updateFirmClientStatus(
   status: FirmClientStatus
 ): Promise<{ error: Error | null }> {
   const { error } = await supabase
-    .schema('firm')
-    .from('clients')
+    .schema('provider')
+    .from('consumers')
     .update({ status, updated_at: new Date().toISOString() })
     .eq('id', clientId);
   return { error: error ? new Error(error.message) : null };
@@ -3349,8 +3349,8 @@ export async function updateFirmClientLabels(
 ): Promise<{ error: Error | null }> {
   const arr = Array.isArray(labels) ? labels.filter((s) => typeof s === 'string' && s.trim().length > 0).map((s) => s.trim()) : [];
   const { error } = await supabase
-    .schema('firm')
-    .from('clients')
+    .schema('provider')
+    .from('consumers')
     .update({ labels: arr, updated_at: new Date().toISOString() })
     .eq('id', clientId);
   return { error: error ? new Error(error.message) : null };
@@ -3398,22 +3398,22 @@ export async function getFirmSpaceMembers(firmSpaceId: string): Promise<FirmSpac
 export async function deleteFirmClients(clientIds: string[]): Promise<{ error: Error | null }> {
   if (clientIds.length === 0) return { error: null };
   const { error } = await supabase
-    .schema('firm')
-    .from('clients')
+    .schema('provider')
+    .from('consumers')
     .delete()
     .in('id', clientIds);
   return { error: error ? new Error(error.message) : null };
 }
 
-/** 批量删除 pending 客户行（firm.clients where client_space_id IS NULL） */
+/** 批量删除 pending 客户行（firm.clients where consumer_space_id IS NULL） */
 export async function deleteFirmPendingClients(firmClientIds: string[]): Promise<{ error: Error | null }> {
   if (firmClientIds.length === 0) return { error: null };
   const { error } = await supabase
-    .schema('firm')
-    .from('clients')
+    .schema('provider')
+    .from('consumers')
     .delete()
     .in('id', firmClientIds)
-    .is('client_space_id', null);
+    .is('consumer_space_id', null);
   return { error: error ? new Error(error.message) : null };
 }
 
@@ -3438,7 +3438,7 @@ export async function updateOrderStatus(
   status: FirmOrderStatus
 ): Promise<{ error: Error | null }> {
   const { data, error } = await supabase
-    .schema('firm')
+    .schema('provider')
     .from('orders')
     .update({ status, updated_at: new Date().toISOString() })
     .eq('id', orderId)

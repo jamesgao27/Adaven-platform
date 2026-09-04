@@ -348,11 +348,11 @@ export default function FirmClientsScreen() {
     };
     const chClients = supabase
       .channel(`firm-clients-${firmSpaceId}`)
-      .on('postgres_changes', { event: '*', schema: 'firm', table: 'clients', filter: `firm_space_id=eq.${firmSpaceId}` }, debouncedRefresh)
+      .on('postgres_changes', { event: '*', schema: 'provider', table: 'consumers', filter: `provider_space_id=eq.${firmSpaceId}` }, debouncedRefresh)
       .subscribe();
     const chOrders = supabase
       .channel(`firm-orders-clients-${firmSpaceId}`)
-      .on('postgres_changes', { event: '*', schema: 'firm', table: 'orders', filter: `firm_space_id=eq.${firmSpaceId}` }, debouncedRefresh)
+      .on('postgres_changes', { event: '*', schema: 'provider', table: 'orders', filter: `provider_space_id=eq.${firmSpaceId}` }, debouncedRefresh)
       .subscribe();
     return () => {
       if (refreshTimeout) clearTimeout(refreshTimeout);

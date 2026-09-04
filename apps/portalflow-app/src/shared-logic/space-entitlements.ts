@@ -74,7 +74,7 @@ export async function fetchSpaceEntitlements(spaceId: string): Promise<SpaceEnti
       code: typeof o.code === 'string' ? o.code : 'UNKNOWN',
     };
   }
-  const cr = o.client_recognition;
+  const cr = o.consumer_recognition ?? o.client_recognition;
   const fe = o.firm_engagement;
   return {
     ok: true,

@@ -35,8 +35,8 @@ async function enrichFirmStatus(space: PlatformSpace | null): Promise<Space | nu
   let firmStatus: 'pending' | 'approved' | undefined;
   if (space.kind === 'provider') {
     const { data: firmRow } = await supabase
-      .schema('firm')
-      .from('firms')
+      .schema('provider')
+      .from('providers')
       .select('status')
       .eq('space_id', space.id)
       .maybeSingle();
@@ -61,8 +61,8 @@ export async function getUserSpaces(): Promise<UserSpace[]> {
   let firmStatusBySpaceId: Record<string, 'pending' | 'approved'> = {};
   if (firmIds.length > 0) {
     const { data: firmRows } = await supabase
-      .schema('firm')
-      .from('firms')
+      .schema('provider')
+      .from('providers')
       .select('space_id, status')
       .in('space_id', firmIds);
     if (firmRows) {
@@ -130,7 +130,7 @@ export async function createSpaceCore(
       p_user_id: authUser.id,
       p_kind: kind,
       p_client_profile_type: kind === 'consumer' ? clientProfileType : 'household',
-      p_firm_verification_url: verificationUrl,
+      p_provider_verification_url: verificationUrl,
     });
 
     if (rpcError || !rpcSpaceId) {
@@ -205,8 +205,8 @@ export async function createSpace(
     let firmStatus: 'pending' | 'approved' | undefined;
     if (result.space.kind === 'provider') {
       const { data: firmRow } = await supabase
-        .schema('firm')
-        .from('firms')
+        .schema('provider')
+        .from('providers')
         .select('status')
         .eq('space_id', result.space.id)
         .maybeSingle();
