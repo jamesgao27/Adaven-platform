@@ -27,11 +27,7 @@ import {
   CHAT_STAGED_FILES_DISPLAY_MAX,
   chatStagedFilesOverflowLabel,
 } from '../lib/chat-staged-files-display';
-import {
-  WEBCHAT_FAB_COMPOSER_NATIVE_ID,
-  extractClipboardImageFiles,
-  useWebClipboardImagePaste,
-} from '../lib/use-web-clipboard-image-paste';
+import { MAC_SCREENSHOT_CLIPBOARD_HINT, WEBCHAT_FAB_COMPOSER_NATIVE_ID } from '../lib/use-web-clipboard-image-paste';
 
 /** 与嵌入式页面 `fabContainerWeb` 必须一致，否则折叠态与悬停展开态头像垂直位置错位 */
 export const WEB_CHAT_FAB_SIZE = 100;
@@ -102,22 +98,6 @@ export default function WebChatFab({ type = 'receipt', variant = 'chat', embedde
       showToast(e instanceof Error ? e.message : 'Failed to add files', 'error');
     }
   }, []);
-
-  const stageClipboardImages = useCallback((files: StagedAttachmentFile[]) => {
-    if (!files.length) return;
-    setStagedAttachmentFiles((prev) => [...prev, ...files]);
-  }, []);
-
-  useWebClipboardImagePaste(stageClipboardImages, Platform.OS === 'web' && hovered && !open);
-
-  const onWebComposerPaste = useCallback((e: unknown) => {
-    const files = extractClipboardImageFiles(e);
-    if (!files.length) return;
-    const ev = e as { preventDefault?: () => void; stopPropagation?: () => void };
-    ev.preventDefault?.();
-    ev.stopPropagation?.();
-    stageClipboardImages(files);
-  }, [stageClipboardImages]);
 
   const pickFoldersForSend = useCallback(() => {
     if (typeof document === 'undefined') return;
@@ -211,7 +191,6 @@ export default function WebChatFab({ type = 'receipt', variant = 'chat', embedde
           nativeID={WEBCHAT_FAB_COMPOSER_NATIVE_ID}
           // @ts-expect-error web DOM id + paste
           id={WEBCHAT_FAB_COMPOSER_NATIVE_ID}
-          onPaste={onWebComposerPaste}
           style={[webInputBlockStyles.webInputOuter, styles.expandedOuterInner]}
         >
           <View style={webInputBlockStyles.webInputBlock}>
@@ -290,7 +269,7 @@ export default function WebChatFab({ type = 'receipt', variant = 'chat', embedde
             </View>
           </View>
           <Text style={webInputBlockStyles.webInputDisclaimer}>
-            AI Assistant may make mistakes. Paste a screenshot with Ctrl+V or ⌘V.
+            AI Assistant may make mistakes. {MAC_SCREENSHOT_CLIPBOARD_HINT}
           </Text>
         </View>
         <View style={styles.expandedAvatarFixed} pointerEvents="none">

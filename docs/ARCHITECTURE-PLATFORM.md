@@ -11,8 +11,8 @@
 
 | What | Where |
 |---|---|
-| Vouchap **live** (frozen) | Original repo `jamesgao27/Vouchap` + Supabase `giuacjbfsyrristkigmz` (`kind` = `firm`/`client`) + Pages `vouchap`. Do not iterate. Do not migrate its users. |
-| **Portalflow** (new) | `apps/portalflow-app`. Kernel `provider`/`consumer`, UI Firm/Client. **New empty Supabase** + Pages **`portalflow`**. No Vouchap user import. |
+| Vouchap **live** (independent) | Original repo `jamesgao27/Vouchap` + Supabase `giuacjbfsyrristkigmz` (`kind` = `firm`/`client`) + Pages `vouchap`. Full standalone app — **do not** depend on this repo or `@adaven/platform-*`. Do not migrate its users. |
+| **Portalflow** (new) | `apps/portalflow-app`. Business aligned with Vouchap. Kernel `provider`/`consumer`, UI Firm/Client. **New empty Supabase** + Pages **`portalflow`**. No Vouchap user import. |
 | Wholestore | `apps/wholestore-app` → Supabase `foyecolycmxcneflpant` |
 | **Adaven-CRM Hub** | Standalone repo `Adaven-CRM` (package `adaven-crm`) → Supabase **`glwacznypahmlpwottfz`**. Ops Auth only; not a product tenant. |
 | Platform kernel | `packages/*` (code only, not a tenant) |

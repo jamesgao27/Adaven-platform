@@ -1,7 +1,7 @@
 # Publish model — one kernel, independent ships
 
-**Source of truth is this repo:** `jamesgao27/Adaven-platform`.  
-The historical GitHub repo `jamesgao27/Vouchap` is the **frozen live Vouchap product** — do not iterate the app there, and do not deploy Adaven apps onto its Pages project or Supabase.
+**Source of truth for Portalflow / Wholestore / kernel is this repo:** `jamesgao27/Adaven-platform`.  
+`jamesgao27/Vouchap` is the **independent live Vouchap product** — iterate it only in that repo, with a full standalone codebase (no `@adaven/platform-*`). Do not deploy Adaven apps onto its Pages project or Supabase. Portalflow here mirrors Vouchap business and uses the platform space kernel.
 
 ## Release contract
 
@@ -19,7 +19,7 @@ Adaven-platform (GitHub: jamesgao27/Adaven-platform)
 ├── apps/portalflow-app    → Pages **portalflow** · new EAS · Supabase xvqlqvtfogxkfeillvig
 └── apps/wholestore-app    → Pages **wholestore** · own EAS · Supabase foyecolycmxcneflpant
 
-Frozen (other repo, do not touch from this tree)
+Independent (other repo — full standalone app, no @adaven/*)
 └── jamesgao27/Vouchap     → Pages **vouchap** · EAS f98c5cea-… · giuacjbfsyrristkigmz
 ```
 
@@ -78,9 +78,9 @@ Create via Direct Upload / wrangler. **No Git.**
 | `wrangler.toml` `name` | `portalflow` |
 | Deploys | GitHub Action **Deploy Portalflow Web**, or `npm run portalflow:deploy:web` |
 
-### Frozen Vouchap — existing project `vouchap`
+### Independent Vouchap — existing project `vouchap`
 
-Leave this project on the original product. Do **not** Direct-Upload Portalflow there.
+Leave this project on the original standalone product (iterate in `jamesgao27/Vouchap` only). Do **not** Direct-Upload Portalflow there.
 
 ### Wholestore — project `wholestore`
 

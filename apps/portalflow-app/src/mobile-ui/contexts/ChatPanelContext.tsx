@@ -32,6 +32,8 @@ type ChatPanelContextValue = {
   setAttachmentContext: (c: AttachmentContext) => void;
   /** 由右栏 ChatToLogContent 注册，openPanel 后用于聚焦输入框 */
   inputFocusRef: React.MutableRefObject<(() => void) | null>;
+  /** 由 ChatToLog 注册：全局 ⌘V 截图直接写入暂存区 */
+  appendStagedFilesRef: React.MutableRefObject<((files: StagedAttachmentFile[]) => void) | null>;
 };
 
 const ChatPanelContext = createContext<ChatPanelContextValue | null>(null);
@@ -43,6 +45,7 @@ export function ChatPanelProvider({ children }: { children: ReactNode }) {
   const [initialStagedFiles, setInitialStagedFiles] = useState<StagedAttachmentFile[] | null>(null);
   const [attachmentContext, setAttachmentContext] = useState<AttachmentContext>({});
   const inputFocusRef = useRef<(() => void) | null>(null);
+  const appendStagedFilesRef = useRef<((files: StagedAttachmentFile[]) => void) | null>(null);
 
   const openPanel = useCallback((t?: ChatPanelType) => {
     if (t) setType(t);
@@ -67,6 +70,7 @@ export function ChatPanelProvider({ children }: { children: ReactNode }) {
       attachmentContext,
       setAttachmentContext,
       inputFocusRef,
+      appendStagedFilesRef,
     }),
     [open, type, initialInput, initialStagedFiles, attachmentContext, openPanel, closePanel],
   );

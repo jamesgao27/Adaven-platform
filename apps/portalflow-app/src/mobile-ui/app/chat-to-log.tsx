@@ -99,11 +99,7 @@ import FirmAddClientModal, {
 import { FileDetailModal, type FileDetailModalFile } from '@/components/FileDetailModal';
 import { AttachmentImagePreviewModal } from '@/components/AttachmentImagePreviewModal';
 import { webInputBlockStyles } from '../styles/web-input-block-styles';
-import {
-  CHAT_WEB_COMPOSER_NATIVE_ID,
-  extractClipboardImageFiles,
-  useWebClipboardImagePaste,
-} from '../lib/use-web-clipboard-image-paste';
+import { CHAT_WEB_COMPOSER_NATIVE_ID, filesFromClipboardItems } from '../lib/use-web-clipboard-image-paste';
 import {
   CHAT_STAGED_FILES_DISPLAY_MAX,
   chatStagedFilesOverflowLabel,
@@ -1476,26 +1472,28 @@ function ChatToLogScreen(props: { voucherType?: VoucherLogType }) {
     }
   }, [effectiveProjectId, isProcessing, voucherType, isDesktopWeb]);
 
-  const stageClipboardImages = useCallback((files: { id: string; uri: string; name?: string; mimeType?: string }[]) => {
+  const lastPasteAtRef = useRef(0);
+  const stagePastedImages = useCallback((files: { id: string; uri: string; name?: string; mimeType?: string }[]) => {
     if (isProcessing || !files.length) return;
+    const now = Date.now();
+    if (now - lastPasteAtRef.current < 400) return;
+    lastPasteAtRef.current = now;
     if (voucherType === 'tax-filing' && !effectiveProjectId) {
       showToast('Open from a tax-filing project to attach files.', 'info');
       return;
     }
     setStagedAttachmentFiles((prev) => [...prev, ...files]);
     setIsVoiceMode(false);
+    showToast('Screenshot added.', 'success');
   }, [effectiveProjectId, isProcessing, voucherType]);
 
-  useWebClipboardImagePaste(stageClipboardImages, Platform.OS === 'web' && !isProcessing);
-
-  const onWebComposerPaste = useCallback((e: unknown) => {
-    const files = extractClipboardImageFiles(e);
-    if (!files.length) return;
-    const ev = e as { preventDefault?: () => void; stopPropagation?: () => void };
-    ev.preventDefault?.();
-    ev.stopPropagation?.();
-    stageClipboardImages(files);
-  }, [stageClipboardImages]);
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !chatPanel) return;
+    chatPanel.appendStagedFilesRef.current = stagePastedImages;
+    return () => {
+      chatPanel.appendStagedFilesRef.current = null;
+    };
+  }, [chatPanel, stagePastedImages]);
 
   /** Web：仅选择文件夹（可多选），将文件夹内的所有文件展开为待上传列表。 */
   const pickFoldersForSend = useCallback(() => {
@@ -3634,7 +3632,6 @@ function ChatToLogScreen(props: { voucherType?: VoucherLogType }) {
             nativeID={CHAT_WEB_COMPOSER_NATIVE_ID}
             // @ts-expect-error web DOM id + paste — RN-web nativeID is not always queryable as #id
             id={CHAT_WEB_COMPOSER_NATIVE_ID}
-            onPaste={onWebComposerPaste}
             style={webInputBlockStyles.webInputOuter}
           >
             <View style={webInputBlockStyles.webInputBlock}>
@@ -3690,7 +3687,6 @@ function ChatToLogScreen(props: { voucherType?: VoucherLogType }) {
                     onSubmitEditing={handleSend}
                     blurOnSubmit={false}
                     onFocus={() => setTimeout(() => listRef.current?.scrollToOffset({ offset: 0, animated: true }), 100)}
-                    {...(Platform.OS === 'web' ? { onPaste: onWebComposerPaste } : {})}
                   />
                 </View>
               </View>
@@ -3700,6 +3696,27 @@ function ChatToLogScreen(props: { voucherType?: VoucherLogType }) {
                     <TouchableOpacity style={webInputBlockStyles.webActionIcon} onPress={pickImagesForSend} disabled={isProcessing}>
                       <Ionicons name="image" size={22} color="#636E72" />
                     </TouchableOpacity>
+                    {isDesktopWeb ? (
+                      <TouchableOpacity
+                        style={webInputBlockStyles.webActionIcon}
+                        disabled={isProcessing}
+                        onPress={async () => {
+                          try {
+                            const items = await navigator.clipboard.read();
+                            const files = await filesFromClipboardItems(items);
+                            if (!files.length) {
+                              showToast('No image in clipboard.', 'info');
+                              return;
+                            }
+                            stagePastedImages(files);
+                          } catch {
+                            showToast('Allow clipboard access, then paste again.', 'info');
+                          }
+                        }}
+                      >
+                        <Ionicons name="clipboard-outline" size={22} color="#636E72" />
+                      </TouchableOpacity>
+                    ) : null}
                     {isDesktopWeb ? (
                       <TouchableOpacity
                         style={webInputBlockStyles.webActionIcon}
@@ -3762,7 +3779,7 @@ function ChatToLogScreen(props: { voucherType?: VoucherLogType }) {
               </View>
             </View>
             <Text style={webInputBlockStyles.webInputDisclaimer}>
-              AI Assistant may make mistakes. Paste a screenshot with Ctrl+V or ⌘V.
+              AI Assistant may make mistakes.
             </Text>
           </View>
         ) : (

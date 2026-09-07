@@ -11,6 +11,7 @@ import WebSidebar, { shouldShowWebSidebar } from '@/components/WebSidebar';
 import { FirmPendingOverlay } from '@/components/FirmPendingOverlay';
 import WebChatFab from '@/components/WebChatFab';
 import WebChatPanel from '@/components/WebChatPanel';
+import { WebChatClipboardPasteHost } from '@/components/WebChatClipboardPasteHost';
 import { ChatPanelErrorBoundary } from '@/components/ChatPanelErrorBoundary';
 import { ChatPanelProvider, useChatPanel, type ChatPanelType } from '../contexts/ChatPanelContext';
 import { getWebStackHeaderLeftScreenOptions } from '../lib/web-stack-header-left';
@@ -625,6 +626,7 @@ const styles = StyleSheet.create({
 export default function RootLayout() {
   return (
     <ChatPanelProvider>
+      <WebChatClipboardPasteHost />
       <LayoutContent />
     </ChatPanelProvider>
   );
