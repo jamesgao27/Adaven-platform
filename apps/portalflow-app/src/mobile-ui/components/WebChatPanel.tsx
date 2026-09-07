@@ -39,6 +39,8 @@ export default function WebChatPanel(props: { effectiveType?: ChatPanelType }) {
   return (
     <View
       nativeID={PANEL_NATIVE_ID}
+      // @ts-expect-error web DOM id — used by clipboard paste targeting
+      id={PANEL_NATIVE_ID}
       style={[styles.panel, styles.panelPinned]}
       collapsable={false}
     >

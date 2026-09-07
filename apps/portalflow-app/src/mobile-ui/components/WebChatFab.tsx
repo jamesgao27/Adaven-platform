@@ -29,6 +29,7 @@ import {
 } from '../lib/chat-staged-files-display';
 import {
   WEBCHAT_FAB_COMPOSER_NATIVE_ID,
+  extractClipboardImageFiles,
   useWebClipboardImagePaste,
 } from '../lib/use-web-clipboard-image-paste';
 
@@ -107,7 +108,16 @@ export default function WebChatFab({ type = 'receipt', variant = 'chat', embedde
     setStagedAttachmentFiles((prev) => [...prev, ...files]);
   }, []);
 
-  useWebClipboardImagePaste(stageClipboardImages, hovered && !open, WEBCHAT_FAB_COMPOSER_NATIVE_ID);
+  useWebClipboardImagePaste(stageClipboardImages, Platform.OS === 'web' && hovered && !open);
+
+  const onWebComposerPaste = useCallback((e: unknown) => {
+    const files = extractClipboardImageFiles(e);
+    if (!files.length) return;
+    const ev = e as { preventDefault?: () => void; stopPropagation?: () => void };
+    ev.preventDefault?.();
+    ev.stopPropagation?.();
+    stageClipboardImages(files);
+  }, [stageClipboardImages]);
 
   const pickFoldersForSend = useCallback(() => {
     if (typeof document === 'undefined') return;
@@ -197,7 +207,13 @@ export default function WebChatFab({ type = 'receipt', variant = 'chat', embedde
         onMouseEnter={handleEnter}
         onMouseLeave={scheduleCollapse}
       >
-        <View nativeID={WEBCHAT_FAB_COMPOSER_NATIVE_ID} style={[webInputBlockStyles.webInputOuter, styles.expandedOuterInner]}>
+        <View
+          nativeID={WEBCHAT_FAB_COMPOSER_NATIVE_ID}
+          // @ts-expect-error web DOM id + paste
+          id={WEBCHAT_FAB_COMPOSER_NATIVE_ID}
+          onPaste={onWebComposerPaste}
+          style={[webInputBlockStyles.webInputOuter, styles.expandedOuterInner]}
+        >
           <View style={webInputBlockStyles.webInputBlock}>
             {stagedAttachmentFiles.length > 0 ? (
               <View style={webInputBlockStyles.stagedFilesRow}>

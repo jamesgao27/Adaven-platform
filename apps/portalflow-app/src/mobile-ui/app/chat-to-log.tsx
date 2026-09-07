@@ -101,6 +101,7 @@ import { AttachmentImagePreviewModal } from '@/components/AttachmentImagePreview
 import { webInputBlockStyles } from '../styles/web-input-block-styles';
 import {
   CHAT_WEB_COMPOSER_NATIVE_ID,
+  extractClipboardImageFiles,
   useWebClipboardImagePaste,
 } from '../lib/use-web-clipboard-image-paste';
 import {
@@ -1485,7 +1486,16 @@ function ChatToLogScreen(props: { voucherType?: VoucherLogType }) {
     setIsVoiceMode(false);
   }, [effectiveProjectId, isProcessing, voucherType]);
 
-  useWebClipboardImagePaste(stageClipboardImages, isDesktopWeb && !isProcessing, CHAT_WEB_COMPOSER_NATIVE_ID);
+  useWebClipboardImagePaste(stageClipboardImages, Platform.OS === 'web' && !isProcessing);
+
+  const onWebComposerPaste = useCallback((e: unknown) => {
+    const files = extractClipboardImageFiles(e);
+    if (!files.length) return;
+    const ev = e as { preventDefault?: () => void; stopPropagation?: () => void };
+    ev.preventDefault?.();
+    ev.stopPropagation?.();
+    stageClipboardImages(files);
+  }, [stageClipboardImages]);
 
   /** Web：仅选择文件夹（可多选），将文件夹内的所有文件展开为待上传列表。 */
   const pickFoldersForSend = useCallback(() => {
@@ -3620,7 +3630,13 @@ function ChatToLogScreen(props: { voucherType?: VoucherLogType }) {
 
       <View style={[styles.inputContainer, { paddingBottom: Platform.OS === 'ios' ? (keyboardHeight ? keyboardHeight + 20 : 20) : (keyboardHeight ? keyboardHeight + 16 : 16) }]}>
         {isDesktopWeb ? (
-          <View nativeID={CHAT_WEB_COMPOSER_NATIVE_ID} style={webInputBlockStyles.webInputOuter}>
+          <View
+            nativeID={CHAT_WEB_COMPOSER_NATIVE_ID}
+            // @ts-expect-error web DOM id + paste — RN-web nativeID is not always queryable as #id
+            id={CHAT_WEB_COMPOSER_NATIVE_ID}
+            onPaste={onWebComposerPaste}
+            style={webInputBlockStyles.webInputOuter}
+          >
             <View style={webInputBlockStyles.webInputBlock}>
               {stagedAttachmentFiles.length > 0 && !isProcessing ? (
                 <View style={webInputBlockStyles.stagedFilesRow}>
@@ -3674,6 +3690,7 @@ function ChatToLogScreen(props: { voucherType?: VoucherLogType }) {
                     onSubmitEditing={handleSend}
                     blurOnSubmit={false}
                     onFocus={() => setTimeout(() => listRef.current?.scrollToOffset({ offset: 0, animated: true }), 100)}
+                    {...(Platform.OS === 'web' ? { onPaste: onWebComposerPaste } : {})}
                   />
                 </View>
               </View>
