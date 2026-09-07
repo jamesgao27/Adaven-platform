@@ -36,8 +36,10 @@ import {
   renderDocxIntoContainer,
   isLegacyWordDocBytes,
   writeNativeDocxPreviewHtmlPage,
+  writeNativePdfPreviewHtmlPage,
   iosWebViewAllowingReadAccessUrlForFileUri,
 } from '@/lib/office-inline-preview';
+import { promptSaveAttachmentImage } from './AttachmentImagePreviewModal';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic'];
 
@@ -70,71 +72,6 @@ function getPreviewPaneKind(
   const ext = (url ? url.split(/[#?]/)[0].split('.').pop()?.toLowerCase() : '') ?? '';
   if (IMAGE_EXTENSIONS.includes(ext)) return 'image';
   return 'pdf';
-}
-
-/** Android WebView cannot render PDF natively; embed via PDF.js + base64 bytes. */
-function buildNativePdfJsPreviewHtml(base64: string): string {
-  // base64 alphabet is safe inside a single-quoted JS string
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=3" />
-  <style>
-    html, body { margin: 0; padding: 0; background: #525659; }
-    #pages { padding: 8px 0 24px; }
-    .page { display: block; margin: 8px auto; max-width: 100%; box-shadow: 0 1px 4px rgba(0,0,0,0.35); background: #fff; }
-    #status { color: #fff; font: 14px -apple-system, sans-serif; text-align: center; padding: 24px 12px; }
-  </style>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-</head>
-<body>
-  <div id="status">Loading PDF…</div>
-  <div id="pages"></div>
-  <script>
-    (function () {
-      var statusEl = document.getElementById('status');
-      var pagesEl = document.getElementById('pages');
-      try {
-        pdfjsLib.GlobalWorkerOptions.workerSrc =
-          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        var raw = atob('${base64}');
-        var bytes = new Uint8Array(raw.length);
-        for (var i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-        pdfjsLib.getDocument({ data: bytes }).promise.then(function (pdf) {
-          statusEl.style.display = 'none';
-          var scale = Math.min(2, (window.innerWidth - 16) / 612);
-          if (!(scale > 0)) scale = 1.2;
-          var renderPage = function (n) {
-            return pdf.getPage(n).then(function (page) {
-              var viewport = page.getViewport({ scale: scale });
-              var canvas = document.createElement('canvas');
-              canvas.className = 'page';
-              canvas.width = viewport.width;
-              canvas.height = viewport.height;
-              pagesEl.appendChild(canvas);
-              return page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
-            });
-          };
-          var chain = Promise.resolve();
-          for (var p = 1; p <= pdf.numPages; p++) {
-            (function (pageNum) {
-              chain = chain.then(function () { return renderPage(pageNum); });
-            })(p);
-          }
-          return chain;
-        }).catch(function (err) {
-          statusEl.textContent = 'Could not render this PDF.';
-          console.error(err);
-        });
-      } catch (e) {
-        statusEl.textContent = 'Could not open this PDF.';
-        console.error(e);
-      }
-    })();
-  </script>
-</body>
-</html>`;
 }
 
 function deriveDownloadFileName(file: FileDetailModalFile): string {
@@ -210,7 +147,10 @@ export function FileDetailModal({ file, onClose }: FileDetailModalProps) {
   const [nativeDocxUri, setNativeDocxUri] = useState<string | null>(null);
   const [nativePdfState, setNativePdfState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [nativePdfUri, setNativePdfUri] = useState<string | null>(null);
-  const [nativePdfHtml, setNativePdfHtml] = useState<string | null>(null);
+  const nativePreviewMinHeight = Math.max(
+    280,
+    Math.round(Dimensions.get('window').height * (showRightPanel ? 0.38 : 0.7)),
+  );
   const docxWebRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -221,44 +161,27 @@ export function FileDetailModal({ file, onClose }: FileDetailModalProps) {
     setNativeDocxUri(null);
     setNativePdfState('idle');
     setNativePdfUri(null);
-    setNativePdfHtml(null);
   }, [file.id]);
 
-  /** Native: download PDF then preview in-app (iOS WKWebView / Android PDF.js). Avoid remote URL which often triggers a download only. */
+  /** Native: download PDF, then preview via a local HTML+PDF.js page (iOS file:// PDF is often a white screen). */
   useEffect(() => {
     if (Platform.OS === 'web' || paneKind !== 'pdf' || !file.imageUrl) {
       setNativePdfState('idle');
       setNativePdfUri(null);
-      setNativePdfHtml(null);
       return;
     }
     let cancelled = false;
     setNativePdfState('loading');
     setNativePdfUri(null);
-    setNativePdfHtml(null);
     (async () => {
       try {
         const viewUrl = await getTaxFilingViewUrl(file.imageUrl!);
         const dest = `${FileSystem.cacheDirectory ?? ''}portalflow-pdf-preview-${file.id.slice(0, 8)}-${Date.now()}.pdf`;
         const { uri } = await FileSystem.downloadAsync(viewUrl, dest);
         if (cancelled) return;
-        if (Platform.OS === 'ios') {
-          setNativePdfUri(uri);
-          setNativePdfHtml(null);
-          setNativePdfState('ready');
-          return;
-        }
-        const info = await FileSystem.getInfoAsync(uri);
-        const size = info.exists && typeof (info as { size?: number }).size === 'number' ? (info as { size: number }).size : 0;
-        // Very large PDFs as base64 can OOM; fall back to error UI with open/share.
-        if (size > 18 * 1024 * 1024) {
-          setNativePdfState('error');
-          return;
-        }
-        const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+        const htmlUri = await writeNativePdfPreviewHtmlPage(uri, file.id);
         if (cancelled) return;
-        setNativePdfHtml(buildNativePdfJsPreviewHtml(b64));
-        setNativePdfUri(null);
+        setNativePdfUri(htmlUri);
         setNativePdfState('ready');
       } catch (e) {
         console.error('[FileDetailModal] native PDF preview:', e);
@@ -370,7 +293,7 @@ export function FileDetailModal({ file, onClose }: FileDetailModalProps) {
         return;
       }
 
-      const dest = `${FileSystem.cacheDirectory ?? ''}portalflow-download-${Date.now()}-${baseName}`;
+      const dest = `${FileSystem.cacheDirectory ?? ''}vouchap-download-${Date.now()}-${baseName}`;
       const { uri } = await FileSystem.downloadAsync(viewUrl, dest);
       try {
         await Share.share({
@@ -500,7 +423,15 @@ export function FileDetailModal({ file, onClose }: FileDetailModalProps) {
     }
 
     if (paneKind === 'image') {
-      return <Image source={{ uri: file.imageUrl as string }} style={styles.thumb} resizeMode="contain" />;
+      return (
+        <Pressable
+          style={styles.thumb}
+          onLongPress={() => promptSaveAttachmentImage(file.imageUrl as string)}
+          delayLongPress={350}
+        >
+          <Image source={{ uri: file.imageUrl as string }} style={styles.thumb} resizeMode="contain" />
+        </Pressable>
+      );
     }
 
     if (paneKind === 'office-sheet') {
@@ -685,32 +616,25 @@ export function FileDetailModal({ file, onClose }: FileDetailModalProps) {
           </View>
         );
       }
-      if (nativePdfState === 'ready' && Platform.OS === 'ios' && nativePdfUri && WebView) {
+      if (nativePdfState === 'ready' && nativePdfUri && WebView) {
         const readUrl = iosWebViewAllowingReadAccessUrlForFileUri(nativePdfUri);
         return (
           <WebView
             source={{ uri: nativePdfUri }}
-            style={styles.thumb}
+            style={[styles.thumb, { minHeight: nativePreviewMinHeight }]}
             originWhitelist={['*']}
             scalesPageToFit
             allowFileAccess
             allowFileAccessFromFileURLs
             allowUniversalAccessFromFileURLs
-            allowingReadAccessToURL={readUrl}
-          />
-        );
-      }
-      if (nativePdfState === 'ready' && nativePdfHtml && WebView) {
-        return (
-          <WebView
-            source={{ html: nativePdfHtml, baseUrl: 'https://cdnjs.cloudflare.com/' }}
-            style={styles.thumb}
-            originWhitelist={['*']}
-            scalesPageToFit
             mixedContentMode="always"
-            setSupportMultipleWindows={false}
             javaScriptEnabled
             domStorageEnabled
+            setSupportMultipleWindows={false}
+            startInLoadingState
+            onError={() => setNativePdfState('error')}
+            onHttpError={() => setNativePdfState('error')}
+            {...(Platform.OS === 'ios' ? { allowingReadAccessToURL: readUrl } : {})}
           />
         );
       }
@@ -845,6 +769,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
+    flex: Platform.OS === 'web' ? undefined : 1,
+    minHeight: Platform.OS === 'web' ? 420 : 280,
     aspectRatio: Platform.OS === 'web' ? 440 / 600 : undefined,
     alignSelf: 'stretch',
     width: Platform.OS === 'web' ? '61.8%' : '100%',
@@ -852,7 +778,6 @@ const styles = StyleSheet.create({
       ? {
           flexShrink: 0,
           minWidth: 0,
-          minHeight: 420,
         }
       : null),
   },
@@ -863,7 +788,7 @@ const styles = StyleSheet.create({
   leftWeb: {
     overscrollBehavior: 'contain',
   } as any,
-  thumb: { width: '100%', height: '100%', borderRadius: 10, backgroundColor: '#FFF' },
+  thumb: { width: '100%', height: '100%', minHeight: 240, borderRadius: 10, backgroundColor: '#FFF' },
   thumbWebIframeHost:
     Platform.OS === 'web'
       ? {

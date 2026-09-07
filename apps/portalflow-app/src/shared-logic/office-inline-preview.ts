@@ -143,3 +143,100 @@ export function iosWebViewAllowingReadAccessUrlForFileUri(fileUri: string): stri
   if (slash <= 0) return fileUri;
   return fileUri.slice(0, slash + 1);
 }
+
+function buildNativePdfHtmlShell(pdfFileName: string): string {
+  const nameJson = JSON.stringify(pdfFileName);
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=4"/>
+<style>
+html,body{margin:0;padding:0;background:#525659;min-height:100%;}
+#pages{padding:8px 0 24px;}
+.page{display:block;margin:8px auto;max-width:100%;box-shadow:0 1px 4px rgba(0,0,0,.35);background:#fff;}
+#status{color:#fff;font:14px -apple-system,sans-serif;text-align:center;padding:24px 12px;}
+</style></head><body>
+<div id="status">Loading PDF…</div><div id="pages"></div>
+<script>
+(function(){
+  var name = ${nameJson};
+  var statusEl = document.getElementById('status');
+  var pagesEl = document.getElementById('pages');
+  var scripts = [
+    'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js',
+    'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js',
+    'https://cdn.bootcdn.net/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
+  ];
+  var workers = [
+    'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js',
+    'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js',
+    'https://cdn.bootcdn.net/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
+  ];
+  function loadScript(src){
+    return new Promise(function(resolve, reject){
+      var s = document.createElement('script');
+      s.src = src;
+      s.onload = function(){ resolve(); };
+      s.onerror = function(){ reject(new Error('script')); };
+      document.head.appendChild(s);
+    });
+  }
+  function renderWithPdfJs(){
+    return fetch(name).then(function(r){
+      if (!r.ok) throw new Error('pdf ' + r.status);
+      return r.arrayBuffer();
+    }).then(function(ab){
+      return pdfjsLib.getDocument({ data: ab }).promise;
+    }).then(function(pdf){
+      statusEl.style.display = 'none';
+      var scale = Math.min(2, (window.innerWidth - 16) / 612);
+      if (!(scale > 0)) scale = 1.2;
+      var chain = Promise.resolve();
+      for (var p = 1; p <= pdf.numPages; p++) {
+        (function(n){
+          chain = chain.then(function(){
+            return pdf.getPage(n).then(function(page){
+              var viewport = page.getViewport({ scale: scale });
+              var canvas = document.createElement('canvas');
+              canvas.className = 'page';
+              canvas.width = viewport.width;
+              canvas.height = viewport.height;
+              pagesEl.appendChild(canvas);
+              return page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
+            });
+          });
+        })(p);
+      }
+      return chain;
+    });
+  }
+  function tryCdn(i){
+    if (i >= scripts.length) {
+      statusEl.textContent = 'Could not load PDF viewer. Use Download to open the file.';
+      return;
+    }
+    loadScript(scripts[i]).then(function(){
+      pdfjsLib.GlobalWorkerOptions.workerSrc = workers[i];
+      return renderWithPdfJs();
+    }).catch(function(err){
+      console.error(err);
+      tryCdn(i + 1);
+    });
+  }
+  tryCdn(0);
+})();
+</script></body></html>`;
+}
+
+/**
+ * Writes an HTML shell next to a local PDF so native WebView can render via PDF.js
+ * (same pattern as Word preview). Avoids iOS file:// PDF white screens and Android CDN-only HTML strings.
+ */
+export async function writeNativePdfPreviewHtmlPage(pdfFileUri: string, attachmentId: string): Promise<string> {
+  const dir = iosWebViewAllowingReadAccessUrlForFileUri(pdfFileUri);
+  const pdfName = decodeURIComponent((pdfFileUri.split('/').pop() || 'preview.pdf').split('?')[0]);
+  if (!pdfName) throw new Error('PDF file name is missing');
+  const safeId = attachmentId.replace(/[^a-z0-9-]/gi, '').slice(0, 36) || 'att';
+  const htmlPath = `${dir}pdf-preview-${safeId}-${Date.now()}.html`;
+  await FileSystem.writeAsStringAsync(htmlPath, buildNativePdfHtmlShell(pdfName));
+  return toFileWebViewUri(htmlPath);
+}

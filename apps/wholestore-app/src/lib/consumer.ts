@@ -1,5 +1,6 @@
 import { getCurrentSpace, getPlatformClient } from '@adaven/platform-core';
 import { listOrdersForConsumerSpace, type ProviderOrder, type ProviderSku } from './provider';
+import { fetchSpaceEntitlements, requireActiveSubscription } from './space-entitlements';
 
 export type MarketplaceSku = ProviderSku & { factoryName: string };
 
@@ -87,6 +88,7 @@ export async function getMarketplaceFactoryPoster(
 }
 
 export async function applyToFactory(providerSpaceId: string, consumerSpaceId: string): Promise<void> {
+  requireActiveSubscription(await fetchSpaceEntitlements(consumerSpaceId));
   const { error } = await db().rpc('consumer_apply_to_provider', {
     p_provider_space_id: providerSpaceId,
     p_consumer_space_id: consumerSpaceId,
@@ -109,6 +111,7 @@ export async function createOrderFromMarketplace(
   const payload = lines
     .filter((l) => l.skuId && l.quantity > 0)
     .map((l) => ({ sku_id: l.skuId, quantity: l.quantity }));
+  requireActiveSubscription(await fetchSpaceEntitlements(consumerSpaceId));
   const { data, error } = await db().rpc('consumer_create_order_from_published_skus', {
     p_consumer_space_id: consumerSpaceId,
     p_lines: payload,

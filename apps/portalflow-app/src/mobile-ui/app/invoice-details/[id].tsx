@@ -35,6 +35,7 @@ import { format } from 'date-fns';
 import { getLocalDateString } from '@/lib/date-utils';
 import { showToast } from '@/lib/toast';
 import { showChoiceDialog, showConfirmDestructiveDialog } from '@/lib/confirmDialog';
+import { AttachmentImagePreviewModal } from '@/components/AttachmentImagePreviewModal';
 import {
   FileDetailModal,
   looksLikeDocumentAttachmentUrl,
@@ -1267,16 +1268,11 @@ export default function InvoiceDetailsScreen() {
         </TouchableOpacity>
       )}
 
-      <Modal visible={showImageModal} transparent animationType="fade" onRequestClose={() => setShowImageModal(false)}>
-        <View style={styles.modalContainer}>
-          <TouchableOpacity style={styles.modalCloseButton} onPress={() => setShowImageModal(false)}>
-            <Ionicons name="close" size={32} color="#fff" />
-          </TouchableOpacity>
-          {currentInvoice.imageUrl && (
-            <Image source={{ uri: currentInvoice.imageUrl }} style={styles.modalImage} resizeMode="contain" />
-          )}
-        </View>
-      </Modal>
+      <AttachmentImagePreviewModal
+        visible={showImageModal}
+        uri={currentInvoice.imageUrl}
+        onClose={() => setShowImageModal(false)}
+      />
 
       {fileDetailForModal && (
         <Modal

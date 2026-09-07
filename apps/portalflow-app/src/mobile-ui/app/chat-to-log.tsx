@@ -97,7 +97,12 @@ import FirmAddClientModal, {
   type FirmAddClientBatchRow,
 } from '@/components/FirmAddClientModal';
 import { FileDetailModal, type FileDetailModalFile } from '@/components/FileDetailModal';
+import { AttachmentImagePreviewModal } from '@/components/AttachmentImagePreviewModal';
 import { webInputBlockStyles } from '../styles/web-input-block-styles';
+import {
+  CHAT_WEB_COMPOSER_NATIVE_ID,
+  useWebClipboardImagePaste,
+} from '../lib/use-web-clipboard-image-paste';
 import {
   CHAT_STAGED_FILES_DISPLAY_MAX,
   chatStagedFilesOverflowLabel,
@@ -1470,6 +1475,18 @@ function ChatToLogScreen(props: { voucherType?: VoucherLogType }) {
     }
   }, [effectiveProjectId, isProcessing, voucherType, isDesktopWeb]);
 
+  const stageClipboardImages = useCallback((files: { id: string; uri: string; name?: string; mimeType?: string }[]) => {
+    if (isProcessing || !files.length) return;
+    if (voucherType === 'tax-filing' && !effectiveProjectId) {
+      showToast('Open from a tax-filing project to attach files.', 'info');
+      return;
+    }
+    setStagedAttachmentFiles((prev) => [...prev, ...files]);
+    setIsVoiceMode(false);
+  }, [effectiveProjectId, isProcessing, voucherType]);
+
+  useWebClipboardImagePaste(stageClipboardImages, isDesktopWeb && !isProcessing, CHAT_WEB_COMPOSER_NATIVE_ID);
+
   /** Web：仅选择文件夹（可多选），将文件夹内的所有文件展开为待上传列表。 */
   const pickFoldersForSend = useCallback(() => {
     if (isProcessing) return;
@@ -2798,18 +2815,11 @@ function ChatToLogScreen(props: { voucherType?: VoucherLogType }) {
 
   const mainContent = (
     <>
-      <Modal visible={!!attachmentImageModalUrl} transparent animationType="fade">
-        <Pressable style={styles.attachmentImageModalBackdrop} onPress={() => setAttachmentImageModalUrl(null)}>
-          <View style={styles.attachmentImageModalContent}>
-            {attachmentImageModalUrl ? (
-              <Image source={{ uri: attachmentImageModalUrl }} style={styles.attachmentImageModalImage} resizeMode="contain" />
-            ) : null}
-          </View>
-          <TouchableOpacity style={styles.attachmentImageModalClose} onPress={() => setAttachmentImageModalUrl(null)}>
-            <Ionicons name="close-circle" size={36} color="rgba(255,255,255,0.9)" />
-          </TouchableOpacity>
-        </Pressable>
-      </Modal>
+      <AttachmentImagePreviewModal
+        visible={!!attachmentImageModalUrl}
+        uri={attachmentImageModalUrl}
+        onClose={() => setAttachmentImageModalUrl(null)}
+      />
       {attachmentDetailForModal ? (
         <Modal visible transparent animationType="fade">
           <FileDetailModal
@@ -3610,7 +3620,7 @@ function ChatToLogScreen(props: { voucherType?: VoucherLogType }) {
 
       <View style={[styles.inputContainer, { paddingBottom: Platform.OS === 'ios' ? (keyboardHeight ? keyboardHeight + 20 : 20) : (keyboardHeight ? keyboardHeight + 16 : 16) }]}>
         {isDesktopWeb ? (
-          <View style={webInputBlockStyles.webInputOuter}>
+          <View nativeID={CHAT_WEB_COMPOSER_NATIVE_ID} style={webInputBlockStyles.webInputOuter}>
             <View style={webInputBlockStyles.webInputBlock}>
               {stagedAttachmentFiles.length > 0 && !isProcessing ? (
                 <View style={webInputBlockStyles.stagedFilesRow}>
@@ -3734,7 +3744,9 @@ function ChatToLogScreen(props: { voucherType?: VoucherLogType }) {
                 </TouchableOpacity>
               </View>
             </View>
-            <Text style={webInputBlockStyles.webInputDisclaimer}>AI Assistant may make mistakes.</Text>
+            <Text style={webInputBlockStyles.webInputDisclaimer}>
+              AI Assistant may make mistakes. Paste a screenshot with Ctrl+V or ⌘V.
+            </Text>
           </View>
         ) : (
           <View style={styles.nativeInputColumn}>

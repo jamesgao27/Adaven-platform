@@ -35,6 +35,7 @@ import { Receipt, ReceiptItem, Category, Attribution, ReceiptStatus, Account } f
 import { format } from 'date-fns';
 import { showToast } from '@/lib/toast';
 import { showChoiceDialog, showConfirmDestructiveDialog } from '@/lib/confirmDialog';
+import { AttachmentImagePreviewModal } from '@/components/AttachmentImagePreviewModal';
 import {
   FileDetailModal,
   looksLikeDocumentAttachmentUrl,
@@ -1617,29 +1618,11 @@ export default function ReceiptDetailsScreen() {
         </TouchableOpacity>
       )}
 
-      {/* 图片查看模态框 */}
-      <Modal
+      <AttachmentImagePreviewModal
         visible={showImageModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowImageModal(false)}
-      >
-        <View style={styles.modalContainer}>
-          <TouchableOpacity
-            style={styles.modalCloseButton}
-            onPress={() => setShowImageModal(false)}
-          >
-            <Ionicons name="close" size={32} color="#fff" />
-          </TouchableOpacity>
-          {currentReceipt.imageUrl && (
-            <Image
-              source={{ uri: currentReceipt.imageUrl }}
-              style={styles.modalImage}
-              resizeMode="contain"
-            />
-          )}
-        </View>
-      </Modal>
+        uri={currentReceipt.imageUrl}
+        onClose={() => setShowImageModal(false)}
+      />
 
       {fileDetailForModal && (
         <Modal

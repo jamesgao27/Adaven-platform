@@ -14,6 +14,7 @@
 | Vouchap **live** (frozen) | Original repo `jamesgao27/Vouchap` + Supabase `giuacjbfsyrristkigmz` (`kind` = `firm`/`client`) + Pages `vouchap`. Do not iterate. Do not migrate its users. |
 | **Portalflow** (new) | `apps/portalflow-app`. Kernel `provider`/`consumer`, UI Firm/Client. **New empty Supabase** + Pages **`portalflow`**. No Vouchap user import. |
 | Wholestore | `apps/wholestore-app` → Supabase `foyecolycmxcneflpant` |
+| **Adaven-CRM Hub** | Standalone repo `Adaven-CRM` (package `adaven-crm`) → Supabase **`glwacznypahmlpwottfz`**. Ops Auth only; not a product tenant. |
 | Platform kernel | `packages/*` (code only, not a tenant) |
 
 Portalflow native identity is new (`com.portalflow.app`, scheme `portalflow`). Do **not** reuse Vouchap EAS `projectId` (`f98c5cea-…`) or bundle `com.vouchap.app`. Create a new EAS app when first building native.
@@ -105,6 +106,16 @@ Do **not** apply `packages/db-platform/sql/010_wholestore_provider_consumer.sql`
 ## Roles
 
 Platform stores `user_spaces.is_admin` (Admin / Member). Membership RPCs live in `020_space_membership.sql`: invite (optional admin), accept/decline, remove, leave, last-admin guard. Wholestore enrollment is `provider.consumers` (Factory ↔ Dealer), not orders. This is **not** Portalflow Firm `permission_roles` (order managers).
+
+## Ops plane (Adaven-CRM)
+
+Cross-product customer operations live in the standalone repo **`Adaven-CRM`** (package name `adaven-crm`) on Supabase **`glwacznypahmlpwottfz`**. It is **not** shipped via this monorepo’s Pages path filters.
+
+- **Hub Auth + Hub `crm` schema**: `ops_users`, `ops_assignments(product_id, tenant_id)`, `tenant_follow_ups`, `ops_audit_log`, `products`. Operators sign in once.
+- **Product DBs keep entitlement facts**: `crm.sku_edition` + `crm.space_orders` (Vouchap / Portalflow / Wholestore) or `crm.workspace_orders` (aim.link). Apps call `get_space_entitlements` / `get_workspace_entitlements`.
+- **Writes** go through Hub Edge Function `product-ops` using per-product **service role** secrets. The CRM browser only holds the Hub anon key.
+- **Frozen Vouchap** (`giuacjbfsyrristkigmz`): adapter reads/writes existing `crm.*` only. No schema or app changes. `created_by_ops_user_id` stays null; Hub ops id is in `metadata.hub_ops_user_id`.
+- Product UI labels (Firm / Client / Vendor / Dealer) stay in the CRM UI mapper. New SQL identifiers are `provider` / `consumer` / `workspace`.
 
 ## Independent release
 

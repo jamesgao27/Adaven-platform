@@ -14,7 +14,8 @@ Do **not** run these files on Vouchap (`giuacjbfsyrristkigmz`).
 8. `packages/db-platform/sql/034_posters_marketing_storefront.sql` — posters M:N SKUs; open invite binds `poster_id` (accept enrolls only); Marketplace exclusive-store RPCs  
 9. `packages/db-platform/sql/035_directed_invite_poster_showcase.sql` — directed invite requires poster; Marketplace showcase vs store; apply-to-provider  
 10. `packages/db-platform/sql/036_overlay_no_ui_words_in_db.sql` — SQL identifiers are `provider`/`consumer` only (no dealer/factory table, column, or RPC names)  
-11. **Skip** `001_create_space_core.sql` on this project (`010` already defines `create_space_core` with `p_kind`)
+11. `packages/db-platform/sql/037_crm_kernel.sql` — `crm.sku_edition` / `space_orders` / `get_space_entitlements` / registration trial + order/enrollment gates  
+12. **Skip** `001_create_space_core.sql` on this project (`010` already defines `create_space_core` with `p_kind`)
 
 Copies also live under `apps/wholestore-app/supabase/migrations/`.
 
@@ -34,7 +35,8 @@ CLI on this machine can stay **Developer** for later SQL (`db query`). Keep **Ow
 8. `034_posters_marketing_storefront.sql` — applied 2026-08-21 via `supabase db query --linked` (Wholestore only)
 9. `035_directed_invite_poster_showcase.sql` — applied 2026-08-21 via `supabase db query --linked` (Wholestore only)
 10. `036_overlay_no_ui_words_in_db.sql` — applied 2026-09-04 via `apps/wholestore-app` `npx supabase db push` (project `foyecolycmxcneflpant` only). Migration history for 030–035 was repaired (`applied`) because those files originally went in via `db query`.
-11. PostgREST exposed schemas: `public, graphql_public, provider, consumer`
+11. `037_crm_kernel.sql` / `20260904170000_crm_kernel.sql` — applied 2026-09-04 via `apps/wholestore-app` `npx supabase db push` (project `foyecolycmxcneflpant` only). Expose schema `crm` (API → Exposed schemas: `public, graphql_public, provider, consumer, crm`).
+12. PostgREST exposed schemas: `public, graphql_public, provider, consumer` (add `crm` when 037 is applied)
 
 Skip `001_create_space_core.sql` on this project.
 

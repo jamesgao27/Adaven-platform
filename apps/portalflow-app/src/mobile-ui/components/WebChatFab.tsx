@@ -27,6 +27,10 @@ import {
   CHAT_STAGED_FILES_DISPLAY_MAX,
   chatStagedFilesOverflowLabel,
 } from '../lib/chat-staged-files-display';
+import {
+  WEBCHAT_FAB_COMPOSER_NATIVE_ID,
+  useWebClipboardImagePaste,
+} from '../lib/use-web-clipboard-image-paste';
 
 /** 与嵌入式页面 `fabContainerWeb` 必须一致，否则折叠态与悬停展开态头像垂直位置错位 */
 export const WEB_CHAT_FAB_SIZE = 100;
@@ -97,6 +101,13 @@ export default function WebChatFab({ type = 'receipt', variant = 'chat', embedde
       showToast(e instanceof Error ? e.message : 'Failed to add files', 'error');
     }
   }, []);
+
+  const stageClipboardImages = useCallback((files: StagedAttachmentFile[]) => {
+    if (!files.length) return;
+    setStagedAttachmentFiles((prev) => [...prev, ...files]);
+  }, []);
+
+  useWebClipboardImagePaste(stageClipboardImages, hovered && !open, WEBCHAT_FAB_COMPOSER_NATIVE_ID);
 
   const pickFoldersForSend = useCallback(() => {
     if (typeof document === 'undefined') return;
@@ -186,7 +197,7 @@ export default function WebChatFab({ type = 'receipt', variant = 'chat', embedde
         onMouseEnter={handleEnter}
         onMouseLeave={scheduleCollapse}
       >
-        <View style={[webInputBlockStyles.webInputOuter, styles.expandedOuterInner]}>
+        <View nativeID={WEBCHAT_FAB_COMPOSER_NATIVE_ID} style={[webInputBlockStyles.webInputOuter, styles.expandedOuterInner]}>
           <View style={webInputBlockStyles.webInputBlock}>
             {stagedAttachmentFiles.length > 0 ? (
               <View style={webInputBlockStyles.stagedFilesRow}>
@@ -262,7 +273,9 @@ export default function WebChatFab({ type = 'receipt', variant = 'chat', embedde
               </View>
             </View>
           </View>
-          <Text style={webInputBlockStyles.webInputDisclaimer}>AI Assistant may make mistakes.</Text>
+          <Text style={webInputBlockStyles.webInputDisclaimer}>
+            AI Assistant may make mistakes. Paste a screenshot with Ctrl+V or ⌘V.
+          </Text>
         </View>
         <View style={styles.expandedAvatarFixed} pointerEvents="none">
           <Image

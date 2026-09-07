@@ -30,6 +30,7 @@ import { getLocalDateString } from '@/lib/date-utils';
 import { showToast } from '@/lib/toast';
 import { confirmDestructive } from '@/lib/alertWeb';
 import { showChoiceDialog } from '@/lib/confirmDialog';
+import { AttachmentImagePreviewModal } from '@/components/AttachmentImagePreviewModal';
 
 export default function InboundDetailsScreen() {
   const { id, new: isNew } = useLocalSearchParams<{ id: string; new?: string }>();
@@ -814,25 +815,11 @@ export default function InboundDetailsScreen() {
         </TouchableOpacity>
       )}
 
-      {/* 图片查看模态框 */}
-      <Modal
+      <AttachmentImagePreviewModal
         visible={showImageModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowImageModal(false)}
-      >
-        <View style={styles.modalContainer}>
-          <TouchableOpacity
-            style={styles.modalCloseButton}
-            onPress={() => setShowImageModal(false)}
-          >
-            <Ionicons name="close" size={32} color="#fff" />
-          </TouchableOpacity>
-          {current.imageUrl && (
-            <Image source={{ uri: current.imageUrl }} style={styles.modalImage} resizeMode="contain" />
-          )}
-        </View>
-      </Modal>
+        uri={current.imageUrl ?? null}
+        onClose={() => setShowImageModal(false)}
+      />
 
       {/* Duplicate name: Replace only this / Replace all (Merge) / Do not replace */}
       <Modal

@@ -1,4 +1,5 @@
 import { getCurrentSpace, getPlatformClient } from '@adaven/platform-core';
+import { fetchSpaceEntitlements, requireActiveSubscription } from './space-entitlements';
 
 export type DealerStatus = 'pending' | 'approved' | 'rejected';
 export type OrderStatus = 'onboarding' | 'processing' | 'completed' | 'cancelled';
@@ -239,6 +240,7 @@ export async function createDealer(input: {
   contactEmail?: string;
   posterId: string;
 }): Promise<ProviderDealer> {
+  requireActiveSubscription(await fetchSpaceEntitlements(input.providerSpaceId));
   const { data, error } = await db().rpc('create_consumer_with_space', {
     p_provider_space_id: input.providerSpaceId,
     p_consumer_name: input.name.trim(),
