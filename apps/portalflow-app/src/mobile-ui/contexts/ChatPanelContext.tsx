@@ -15,6 +15,17 @@ export type AttachmentContext = {
 
 export type StagedAttachmentFile = { id: string; uri: string; name?: string };
 
+/** File-detail payload opened from the right rail; rendered at app root. */
+export type ChatFilePreview = {
+  id: string;
+  name?: string | null;
+  imageUrl?: string | null;
+  docType?: string | null;
+  status?: string;
+  extracted_data?: unknown;
+  hideRightPanel?: boolean;
+};
+
 type ChatPanelContextValue = {
   open: boolean;
   setOpen: (v: boolean) => void;
@@ -34,6 +45,12 @@ type ChatPanelContextValue = {
   inputFocusRef: React.MutableRefObject<(() => void) | null>;
   /** 由 ChatToLog 注册：全局 ⌘V 截图直接写入暂存区 */
   appendStagedFilesRef: React.MutableRefObject<((files: StagedAttachmentFile[]) => void) | null>;
+  imagePreviewUrl: string | null;
+  openImagePreview: (url: string) => void;
+  closeImagePreview: () => void;
+  filePreview: ChatFilePreview | null;
+  openFilePreview: (file: ChatFilePreview) => void;
+  closeFilePreview: () => void;
 };
 
 const ChatPanelContext = createContext<ChatPanelContextValue | null>(null);
@@ -46,6 +63,12 @@ export function ChatPanelProvider({ children }: { children: ReactNode }) {
   const [attachmentContext, setAttachmentContext] = useState<AttachmentContext>({});
   const inputFocusRef = useRef<(() => void) | null>(null);
   const appendStagedFilesRef = useRef<((files: StagedAttachmentFile[]) => void) | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [filePreview, setFilePreview] = useState<ChatFilePreview | null>(null);
+  const openImagePreview = useCallback((url: string) => setImagePreviewUrl(url), []);
+  const closeImagePreview = useCallback(() => setImagePreviewUrl(null), []);
+  const openFilePreview = useCallback((file: ChatFilePreview) => setFilePreview(file), []);
+  const closeFilePreview = useCallback(() => setFilePreview(null), []);
 
   const openPanel = useCallback((t?: ChatPanelType) => {
     if (t) setType(t);
@@ -71,8 +94,28 @@ export function ChatPanelProvider({ children }: { children: ReactNode }) {
       setAttachmentContext,
       inputFocusRef,
       appendStagedFilesRef,
+      imagePreviewUrl,
+      openImagePreview,
+      closeImagePreview,
+      filePreview,
+      openFilePreview,
+      closeFilePreview,
     }),
-    [open, type, initialInput, initialStagedFiles, attachmentContext, openPanel, closePanel],
+    [
+      open,
+      type,
+      initialInput,
+      initialStagedFiles,
+      attachmentContext,
+      openPanel,
+      closePanel,
+      imagePreviewUrl,
+      openImagePreview,
+      closeImagePreview,
+      filePreview,
+      openFilePreview,
+      closeFilePreview,
+    ],
   );
 
   return (

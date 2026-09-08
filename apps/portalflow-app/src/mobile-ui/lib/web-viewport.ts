@@ -30,3 +30,15 @@ export function useWebViewportKind() {
     isDesktopWeb,
   };
 }
+
+/** RN-web `useWindowDimensions` can be 0 inside the chat rail; prefer the browser viewport. */
+export function useOverlayViewportSize() {
+  const dims = useWindowDimensions();
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    return {
+      width: window.innerWidth || dims.width || 1024,
+      height: window.innerHeight || dims.height || 768,
+    };
+  }
+  return { width: dims.width, height: dims.height };
+}

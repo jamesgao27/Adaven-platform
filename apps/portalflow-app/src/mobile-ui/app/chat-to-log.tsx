@@ -96,7 +96,7 @@ import FirmAddClientModal, {
   type FirmAddClientRecognitionDisplay,
   type FirmAddClientBatchRow,
 } from '@/components/FirmAddClientModal';
-import { FileDetailModal, type FileDetailModalFile } from '@/components/FileDetailModal';
+import { FileDetailModal, type FileDetailModalFile, looksLikeDocumentAttachmentUrl, looksLikePdfUrl } from '@/components/FileDetailModal';
 import { AttachmentImagePreviewModal } from '@/components/AttachmentImagePreviewModal';
 import { webInputBlockStyles } from '../styles/web-input-block-styles';
 import { CHAT_WEB_COMPOSER_NATIVE_ID, filesFromClipboardItems } from '../lib/use-web-clipboard-image-paste';
@@ -228,7 +228,7 @@ function isRecognitionResultUnrecognizable(result: { confidence?: number }): boo
 const isImageMime = (mime?: string) => !mime || mime.startsWith('image/');
 /** 是否可内嵌预览的文档（PDF / Word / Excel / PowerPoint 等） */
 const isPreviewableDoc = (name?: string, mime?: string) => {
-  const lower = name?.toLowerCase() ?? '';
+  const lower = (name ?? '').split(/[#?]/)[0].toLowerCase();
   if (lower.endsWith('.pdf')) return true;
   if (/\.(docx?|xlsx?|pptx?|csv)$/i.test(lower)) return true;
   const m = mime || '';
@@ -279,12 +279,13 @@ function restorePromptFromLog(log: ChatLog): Message | null {
   const taxFilingFileName = (log.requestData as any)?.fileName as string | undefined;
   const fileUrlFromRequest = (log.requestData as any)?.imageUrl as string | undefined;
 
-  // 判断文档类型：优先用文件名判，兜底用 prompt 判
-  const effectiveFileName = taxFilingFileName ?? log.prompt;
-  const isDocFile = isPreviewableDoc(effectiveFileName);
-
   // 统一取附件 URL：expenses 存在 requestData.imageUrl，tax-filing 存在 attachmentUrl
   const attachUrl = fileUrlFromRequest ?? log.attachmentUrl ?? undefined;
+
+  // 判断文档类型：优先用文件名判，兜底用 prompt 与附件 URL 判
+  const effectiveFileName = taxFilingFileName ?? log.prompt;
+  const isDocFile =
+    isPreviewableDoc(effectiveFileName) || looksLikeDocumentAttachmentUrl(attachUrl);
 
   let requestImageUrl: string | undefined;
   let documentUrl: string | undefined;
@@ -530,9 +531,12 @@ const UserMessageBubble = memo(function UserMessageBubble({
       <View style={styles.userMediaMessageContent}>
         <TouchableOpacity
           style={styles.userMediaThumb}
-          onPress={() => message.documentUrl && onOpenDocument(message.documentUrl, message.text)}
-          activeOpacity={message.documentUrl ? 0.8 : 1}
-          disabled={!message.documentUrl}
+          onPress={() => {
+            const url = message.documentUrl || message.imageUrl;
+            if (url) onOpenDocument(url, message.text);
+          }}
+          activeOpacity={message.documentUrl || message.imageUrl ? 0.8 : 1}
+          disabled={!(message.documentUrl || message.imageUrl)}
         >
           <Ionicons
             name={/\.pdf$/i.test(message.text) ? 'document-text-outline' : 'document-outline'}
@@ -760,13 +764,29 @@ function ChatToLogScreen(props: { voucherType?: VoucherLogType }) {
     };
   }, [isPanel, inputFocusRef]);
 
+  const showFileDetail = useCallback((file: FileDetailModalFile | null) => {
+    setAttachmentDetailForModal(file);
+  }, []);
+
+  const showImagePreview = useCallback((url: string) => {
+    if (looksLikePdfUrl(url) || looksLikeDocumentAttachmentUrl(url)) {
+      showFileDetail({
+        id: `doc-${Date.now()}`,
+        name: 'Document',
+        imageUrl: url,
+        hideRightPanel: true,
+      });
+      return;
+    }
+    setAttachmentImageModalUrl(url);
+  }, [showFileDetail]);
+
   // 识别后卡片点击：拉取附件详情并填入浮窗
   useEffect(() => {
     if (!selectedAttachmentForModal) {
-      setAttachmentDetailForModal(null);
       return;
     }
-    setAttachmentDetailForModal(null); // 先清空，避免短暂显示上一次附件
+    showFileDetail(null); // 先清空，避免短暂显示上一次附件
     const { attachmentId } = selectedAttachmentForModal;
     let cancelled = false;
     getProjectTodoAttachmentById(attachmentId).then((raw) => {
@@ -784,7 +804,7 @@ function ChatToLogScreen(props: { voucherType?: VoucherLogType }) {
         status: raw.status,
         extracted_data: raw.extracted_data,
       };
-      setAttachmentDetailForModal(file);
+      showFileDetail(file);
     }).catch(() => {
       if (!cancelled) {
         setSelectedAttachmentForModal(null);
@@ -792,7 +812,7 @@ function ChatToLogScreen(props: { voucherType?: VoucherLogType }) {
       }
     });
     return () => { cancelled = true; };
-  }, [selectedAttachmentForModal?.attachmentId, selectedAttachmentForModal?.projectId]);
+  }, [selectedAttachmentForModal?.attachmentId, selectedAttachmentForModal?.projectId, showFileDetail]);
 
   // attachments 模式：有 projectId 时加载 task 列表（用于识别文件后自动匹配）
   useEffect(() => {
@@ -1327,7 +1347,7 @@ function ChatToLogScreen(props: { voucherType?: VoucherLogType }) {
       imageUrl: url,
       hideRightPanel: true,
     };
-    setAttachmentDetailForModal(file);
+    setTimeout(() => showFileDetail(file), 0);
   };
 
   const handlePreviewDetails = async (message: Message) => {
@@ -2829,7 +2849,7 @@ function ChatToLogScreen(props: { voucherType?: VoucherLogType }) {
         onClose={() => setAttachmentImageModalUrl(null)}
       />
       {attachmentDetailForModal ? (
-        <Modal visible transparent animationType="fade">
+        <Modal visible transparent animationType="fade" onRequestClose={() => { setSelectedAttachmentForModal(null); setAttachmentDetailForModal(null); }}>
           <FileDetailModal
             file={attachmentDetailForModal}
             onClose={() => { setSelectedAttachmentForModal(null); setAttachmentDetailForModal(null); }}
@@ -2901,7 +2921,7 @@ function ChatToLogScreen(props: { voucherType?: VoucherLogType }) {
                     message={message}
                     playingAudioId={playingAudioId}
                     onPlayAudio={handlePlayAudio}
-                    onPreviewImage={setAttachmentImageModalUrl}
+                    onPreviewImage={showImagePreview}
                     onOpenDocument={openFileInModal}
                   />
                 ) : (
