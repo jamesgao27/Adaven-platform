@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { fetchAllPages } from './supabase-paging';
 import { Receipt, ReceiptItem, ReceiptLineItemListRow, ReceiptStatus } from '@/types';
 import { coerceReceiptTaxBreakdownEntries } from './receipt-tax-breakdown';
 import { resolveTaxBreakdownTaxKindIds, shapeTaxBreakdownForDb } from './receipt-tax-kind-resolve';
@@ -666,16 +667,21 @@ export async function getAllReceiptsForList(): Promise<Receipt[]> {
     const spaceId = user.currentSpaceId || user.spaceId;
     if (!spaceId) throw new Error('No space selected');
 
-    const { data, error } = await supabase
-      .from('receipts')
-      .select(`
+    // 同样受 1000 行上限影响；created_at 不唯一，需再按 id 排序保证翻页不重不漏
+    const { data, error } = await fetchAllPages<any>((from, to) =>
+      supabase
+        .from('receipts')
+        .select(`
         *,
         entities (*),
         accounts (*),
         created_by_user:users!created_by (id, email, name, current_space_id)
       `)
-      .eq('space_id', spaceId)
-      .order('created_at', { ascending: false });
+        .eq('space_id', spaceId)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(from, to),
+    );
 
     if (error) throw error;
 
@@ -1080,14 +1086,22 @@ export async function getAllReceiptLineItemsForList(): Promise<ReceiptLineItemLi
       categories (*)
     `;
 
-    let { data, error } = await supabase
-      .from('receipt_items')
-      .select(selectWithAttr)
-      .eq('receipts.space_id', spaceId);
+    // 明细行数远多于小票数，单请求会撞上 PostgREST 的 1000 行上限并被静默截断，必须翻页取全
+    const fetchAllItems = (select: string) =>
+      fetchAllPages<any>((from, to) =>
+        supabase
+          .from('receipt_items')
+          .select(select)
+          .eq('receipts.space_id', spaceId)
+          .order('id', { ascending: true })
+          .range(from, to),
+      );
+
+    let { data, error } = await fetchAllItems(selectWithAttr);
 
     let attributionLookup: Map<string, any> | null = null;
     if (error && isMissingNestedAttributionEmbedError(error, 'receipt_items')) {
-      const plain = await supabase.from('receipt_items').select(selectNoAttr).eq('receipts.space_id', spaceId);
+      const plain = await fetchAllItems(selectNoAttr);
       data = plain.data;
       error = plain.error;
       if (!error && data?.length) {
