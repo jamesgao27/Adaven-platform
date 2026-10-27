@@ -24,6 +24,23 @@ Portalflow is a **new** product. Do **not**:
 - **Authentication → SMTP** when invitation email should send (see `functions/send-invitation-email/README.md`)
 - **`GEMINI_API_KEY`**: same Google key as live Vouchap. CLI user cannot write Portalflow secrets (403). Owner must add it in Dashboard → Project Settings → Edge Functions → Secrets. DeepSeek secrets are optional.
 
+## Hub CRM orders (2026-09-17)
+
+`crm.space_orders` historically allowed INSERT/UPDATE for `authenticated` only. Adaven-CRM Hub `product-ops` writes with the Portalflow **service role**, so apply:
+
+`20260917180000_grant_hub_service_role_space_orders.sql`
+
+```bash
+cd apps/portalflow-app
+npx supabase db query --linked -f supabase/migrations/20260917180000_grant_hub_service_role_space_orders.sql
+```
+
+`20260917190000_fix_subscription_space_target_and_accounts.sql` — SKU `space_target` firm/client → provider/consumer so Hub-granted subscriptions activate; rename `payment_accounts` → `accounts` and `receipts.payment_account_id` → `account_id` (plus `input_type`) so expenses list matches the app.
+
+## Preset Service Catalog (2026-09-17)
+
+Portalflow `crm.preset_templates` was still the original seed (English `2025 …` names, no covers). Live Vouchap names/tax labels/covers were copied onto **preset tables only** (`20260917200000_sync_preset_templates_from_vouchap.sql`). Eight PNGs uploaded to Portalflow Storage bucket `marketplace/` (same filenames as Vouchap). Existing `provider.skus` were not rewritten; new Firm registration copies the updated presets.
+
 Resume SQL:
 
 ```bash

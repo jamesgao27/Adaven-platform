@@ -15,7 +15,8 @@ Do **not** run these files on Vouchap (`giuacjbfsyrristkigmz`).
 9. `packages/db-platform/sql/035_directed_invite_poster_showcase.sql` — directed invite requires poster; Marketplace showcase vs store; apply-to-provider  
 10. `packages/db-platform/sql/036_overlay_no_ui_words_in_db.sql` — SQL identifiers are `provider`/`consumer` only (no dealer/factory table, column, or RPC names)  
 11. `packages/db-platform/sql/037_crm_kernel.sql` — `crm.sku_edition` / `space_orders` / `get_space_entitlements` / registration trial + order/enrollment gates  
-12. **Skip** `001_create_space_core.sql` on this project (`010` already defines `create_space_core` with `p_kind`)
+12. `packages/db-platform/sql/038_expose_crm_postgrest.sql` — grant `crm` to `authenticator` and expose it on PostgREST  
+13. **Skip** `001_create_space_core.sql` on this project (`010` already defines `create_space_core` with `p_kind`)
 
 Copies also live under `apps/wholestore-app/supabase/migrations/`.
 
@@ -35,8 +36,9 @@ CLI on this machine can stay **Developer** for later SQL (`db query`). Keep **Ow
 8. `034_posters_marketing_storefront.sql` — applied 2026-08-21 via `supabase db query --linked` (Wholestore only)
 9. `035_directed_invite_poster_showcase.sql` — applied 2026-08-21 via `supabase db query --linked` (Wholestore only)
 10. `036_overlay_no_ui_words_in_db.sql` — applied 2026-09-04 via `apps/wholestore-app` `npx supabase db push` (project `foyecolycmxcneflpant` only). Migration history for 030–035 was repaired (`applied`) because those files originally went in via `db query`.
-11. `037_crm_kernel.sql` / `20260904170000_crm_kernel.sql` — applied 2026-09-04 via `apps/wholestore-app` `npx supabase db push` (project `foyecolycmxcneflpant` only). Expose schema `crm` (API → Exposed schemas: `public, graphql_public, provider, consumer, crm`).
-12. PostgREST exposed schemas: `public, graphql_public, provider, consumer` (add `crm` when 037 is applied)
+11. `037_crm_kernel.sql` / `20260904170000_crm_kernel.sql` — applied 2026-09-04 via `apps/wholestore-app` `npx supabase db push` (project `foyecolycmxcneflpant` only).
+12. `038_expose_crm_postgrest.sql` / `20261004034500_expose_crm_postgrest.sql` — applied 2026-10-03. Grants `crm` to `authenticator` and sets PostgREST schemas to `public, graphql_public, provider, consumer, crm`. Without this, Adaven-CRM customer queries fail only for Wholestore.
+13. `20261027210000_reassert_crm_postgrest_schemas.sql` — applied 2026-10-27. Same grants as 038; needed because `authenticator.pgrst.db_schemas` was wiped again (migration history still showed 038 applied, but REST returned PGRST106 Invalid schema: crm). If CRM Hub fails only on Wholestore with Edge Function non-2xx, re-run this SQL / `db push` and `NOTIFY pgrst, 'reload config'`.
 
 Skip `001_create_space_core.sql` on this project.
 
