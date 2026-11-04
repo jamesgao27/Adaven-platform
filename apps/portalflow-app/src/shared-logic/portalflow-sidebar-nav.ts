@@ -1,9 +1,9 @@
 import type { PlatformSpace } from '@adaven/platform-core';
 import type { SidebarNavItem } from '@adaven/platform-ui';
-import { showAiInventory, showTaxFiling } from './feature-flags';
+import { isReceiptap, showAiInventory, showTaxFiling } from './feature-flags';
 
 export function getPortalflowSidebarNavItems(space: PlatformSpace | null): SidebarNavItem[] {
-  if (space?.kind === 'provider') {
+  if (!isReceiptap && space?.kind === 'provider') {
     return [
       { path: '/', label: 'Insights', icon: 'grid-outline', match: (p) => p === '/' || p === '' },
       { path: '/firm/clients', label: 'Clients', icon: 'people-outline', match: (p) => p.startsWith('/firm/clients') },

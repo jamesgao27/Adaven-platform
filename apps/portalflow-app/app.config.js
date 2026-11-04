@@ -28,17 +28,23 @@ applyLocalEnvFile();
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "";
+const isReceiptap = process.env.APP_VARIANT === "receiptap";
+const appName = isReceiptap ? "Receiptap" : "Portalflow";
+const scheme = isReceiptap ? "vouchap" : "portalflow";
+const bundleId = isReceiptap ? "com.vouchap.app" : "com.portalflow.app";
+const associatedHost = isReceiptap ? "vouchap.com" : "portalflow.app";
+const cameraPermission = `${appName} requires Camera and Photo Library access to scan and upload your receipts for digital tracking.`;
 
 export default {
   expo: {
-    name: "Portalflow",
-    slug: "portalflow",
+    name: appName,
+    slug: isReceiptap ? "vouchap" : "portalflow",
     jsEngine: "jsc",
-    version: pkg.version,
+    version: isReceiptap ? "2.6.7" : pkg.version,
     owner: "aimlink",
     orientation: "default",
     icon: "./assets/logo2.png",
-    scheme: "portalflow",
+    scheme,
     userInterfaceStyle: "light",
     splash: {
       backgroundColor: "#ffffff",
@@ -47,13 +53,13 @@ export default {
     assetBundlePatterns: [],
     ios: {
       supportsTablet: true,
-      bundleIdentifier: "com.portalflow.app",
-      buildNumber: "1",
-      associatedDomains: ["applinks:portalflow.app"]
+      bundleIdentifier: bundleId,
+      buildNumber: isReceiptap ? "45" : "1",
+      associatedDomains: [`applinks:${associatedHost}`]
     },
     android: {
-      package: "com.portalflow.app",
-      versionCode: 1,
+      package: bundleId,
+      versionCode: isReceiptap ? 62 : 1,
       permissions: [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
@@ -72,11 +78,11 @@ export default {
           data: [
             {
               scheme: "https",
-              host: "portalflow.app",
+              host: associatedHost,
               pathPrefix: "/"
             },
             {
-              scheme: "portalflow"
+              scheme
             }
           ],
           category: ["BROWSABLE", "DEFAULT"]
@@ -88,34 +94,38 @@ export default {
       [
         "expo-image-picker",
         {
-          photosPermission: "Portalflow requires Camera and Photo Library access to scan and upload your receipts for digital tracking.",
-          cameraPermission: "Portalflow requires Camera and Photo Library access to scan and upload your receipts for digital tracking."
+          photosPermission: cameraPermission,
+          cameraPermission
         }
       ],
-      ["expo-camera", { cameraPermission: "Portalflow requires Camera and Photo Library access to scan and upload your receipts for digital tracking." }],
+      ["expo-camera", { cameraPermission }],
       [
         "react-native-document-scanner-plugin",
         {
-          cameraPermission: "Portalflow requires Camera and Photo Library access to scan and upload your receipts for digital tracking."
+          cameraPermission
         }
       ],
       "expo-document-picker"
     ],
     web: {
-      name: "Portalflow",
+      name: appName,
       favicon: "./assets/favicon.png"
     },
     ...(process.env.EXPO_PUBLIC_WEB_BASE_PATH
       ? { experiments: { baseUrl: process.env.EXPO_PUBLIC_WEB_BASE_PATH } }
       : {}),
     extra: {
+      ...(isReceiptap
+        ? { eas: { projectId: "f98c5cea-fd51-41e3-9c9c-1512c6b1a8e7" }, appVariant: "receiptap" }
+        : {}),
       supabaseUrl,
       supabaseAnonKey,
-      showAiInventory:
-        process.env.NODE_ENV !== "production"
+      showAiInventory: isReceiptap
+        ? false
+        : process.env.NODE_ENV !== "production"
           ? true
           : process.env.EXPO_PUBLIC_SHOW_AI_INVENTORY === "true",
-      showTaxFiling: true,
+      showTaxFiling: !isReceiptap,
       geminiApiKey: "server-side-gemini-proxy",
       ...(process.env.EXPO_PUBLIC_AI_PROVIDER === "deepseek"
         ? { aiProvider: "deepseek" }

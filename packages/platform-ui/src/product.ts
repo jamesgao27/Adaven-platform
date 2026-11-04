@@ -57,6 +57,11 @@ export type ProductUiConfig = {
   homePath: string;
   spaceKinds: SpaceKindOption[];
   defaultSpaceKind: string;
+  /**
+   * When set, login, setup, and the space switcher only offer these kernel kinds.
+   * Omit to allow every kind the product lists.
+   */
+  allowedSpaceKinds?: string[];
   createSpace: (input: {
     name: string;
     address: string;
@@ -88,6 +93,12 @@ export function getProductUi(): ProductUiConfig {
     );
   }
   return config;
+}
+
+export function filterToAllowedSpaces<T extends { space?: { kind?: string } | null }>(spaces: T[]): T[] {
+  const allowed = getProductUi().allowedSpaceKinds;
+  if (!allowed?.length) return spaces;
+  return spaces.filter((row) => !!row.space?.kind && allowed.includes(row.space.kind));
 }
 
 export function getManagementMenu(space: PlatformSpace | null): ManagementMenuItem[] {

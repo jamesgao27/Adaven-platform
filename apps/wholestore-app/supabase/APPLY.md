@@ -38,7 +38,8 @@ CLI on this machine can stay **Developer** for later SQL (`db query`). Keep **Ow
 10. `036_overlay_no_ui_words_in_db.sql` — applied 2026-09-04 via `apps/wholestore-app` `npx supabase db push` (project `foyecolycmxcneflpant` only). Migration history for 030–035 was repaired (`applied`) because those files originally went in via `db query`.
 11. `037_crm_kernel.sql` / `20260904170000_crm_kernel.sql` — applied 2026-09-04 via `apps/wholestore-app` `npx supabase db push` (project `foyecolycmxcneflpant` only).
 12. `038_expose_crm_postgrest.sql` / `20261004034500_expose_crm_postgrest.sql` — applied 2026-10-03. Grants `crm` to `authenticator` and sets PostgREST schemas to `public, graphql_public, provider, consumer, crm`. Without this, Adaven-CRM customer queries fail only for Wholestore.
-13. `20261027210000_reassert_crm_postgrest_schemas.sql` — applied 2026-10-27. Same grants as 038; needed because `authenticator.pgrst.db_schemas` was wiped again (migration history still showed 038 applied, but REST returned PGRST106 Invalid schema: crm). If CRM Hub fails only on Wholestore with Edge Function non-2xx, re-run this SQL / `db push` and `NOTIFY pgrst, 'reload config'`.
+13. `20261027210000_reassert_crm_postgrest_schemas.sql` — applied 2026-10-27. Same grants as 038; needed because `authenticator.pgrst.db_schemas` was wiped again (migration history still showed 038 applied, but REST returned PGRST106 Invalid schema: crm).
+14. `20261104020000_reassert_crm_postgrest_schemas.sql` — applied 2026-11-03 via `db query --yes` (same wipe: REST hint was `public, graphql_public, provider, consumer`, no `crm`). If CRM Hub fails on Wholestore with Edge Function non-2xx, re-run this SQL and `NOTIFY pgrst, 'reload config'`. `config.toml` `[api].schemas` now lists the same set so a later config push does not drop `crm`.
 
 Skip `001_create_space_core.sql` on this project.
 

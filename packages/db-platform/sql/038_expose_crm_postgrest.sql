@@ -6,8 +6,10 @@
 -- then failed list_orders / list_skus for Wholestore with a non-2xx response.
 --
 -- Note: authenticator.pgrst.db_schemas can be wiped by platform role resets even
--- when this migration stays "applied". If Hub fails only on Wholestore (PGRST106),
--- re-run this file / apps/wholestore-app migration 20261027210000_*.sql.
+-- when this migration stays "applied". If Hub fails on Wholestore (PGRST106),
+-- re-run apps/wholestore-app migration 20261104020000_reassert_crm_postgrest_schemas.sql.
+-- Portalflow uses apps/portalflow-app migration 20261104020000_reassert_postgrest_schemas.sql
+-- (that project also exposes provider and consumer).
 
 GRANT USAGE ON SCHEMA crm TO authenticator, anon, authenticated, service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA crm TO service_role;

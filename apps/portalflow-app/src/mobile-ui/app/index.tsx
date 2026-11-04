@@ -1039,6 +1039,7 @@ export default function HomeScreen() {
               <Text style={styles.secondaryButtonText}>Expenses</Text>
             </TouchableOpacity>
           </View>
+          {showTaxFiling ? (
           <View style={[styles.buttonsRow, { marginTop: 12 }]}>
             <TouchableOpacity
               style={[styles.secondaryButton, styles.halfWidthButton]}
@@ -1053,6 +1054,7 @@ export default function HomeScreen() {
               <Text style={styles.secondaryButtonText}>Tax Filing</Text>
             </TouchableOpacity>
           </View>
+          ) : null}
           {SHOW_AI_INVENTORY_ENTRY && (
             <View style={[styles.buttonsRow, { marginTop: 12 }]}>
               <TouchableOpacity

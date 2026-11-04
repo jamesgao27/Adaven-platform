@@ -1,6 +1,6 @@
 export { SpaceSwitcherModal } from './SpaceSwitcherModal';
 export { ThirdPartyAuthButtons } from './ThirdPartyAuthButtons';
-export { configureProductUi, getProductUi, getManagementMenu, KERNEL_MANAGEMENT_MENU } from './product';
+export { configureProductUi, getProductUi, getManagementMenu, filterToAllowedSpaces, KERNEL_MANAGEMENT_MENU } from './product';
 export type { ProductUiConfig, SpaceKindOption, SetupExtrasContext, SidebarNavItem, ManagementMenuItem } from './product';
 
 export { showToast, subscribeToast } from './lib/toast';

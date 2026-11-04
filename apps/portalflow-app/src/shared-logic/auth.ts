@@ -15,6 +15,7 @@ import {
 } from '@adaven/platform-core';
 import type { PlatformSpace } from '@adaven/platform-core';
 import './portalflow-space-bootstrap';
+import { isReceiptap } from './feature-flags';
 
 export {
   getCurrentUser,
@@ -51,8 +52,14 @@ async function enrichFirmStatus(space: PlatformSpace | null): Promise<Space | nu
 }
 
 export async function getCurrentSpace(forceRefresh: boolean = false): Promise<Space | null> {
-  const space = await getPlatformCurrentSpace(forceRefresh);
-  return enrichFirmStatus(space);
+  let space = await enrichFirmStatus(await getPlatformCurrentSpace(forceRefresh));
+  if (isReceiptap && space?.kind === 'provider') {
+    const books = (await getUserSpaces()).filter((row) => row.space?.kind !== 'provider');
+    if (!books[0]) return null;
+    await setCurrentSpace(books[0].spaceId);
+    space = await enrichFirmStatus(await getPlatformCurrentSpace(true));
+  }
+  return space;
 }
 
 export async function getUserSpaces(): Promise<UserSpace[]> {
@@ -71,7 +78,7 @@ export async function getUserSpaces(): Promise<UserSpace[]> {
       });
     }
   }
-  return list.map((row) => ({
+  const mapped = list.map((row) => ({
     id: row.id,
     userId: row.userId,
     spaceId: row.spaceId,
@@ -88,6 +95,8 @@ export async function getUserSpaces(): Promise<UserSpace[]> {
         }
       : undefined,
   }));
+  if (!isReceiptap) return mapped;
+  return mapped.filter((row) => row.space?.kind !== 'provider');
 }
 
 let createSpaceInFlight = false;

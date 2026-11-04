@@ -20,7 +20,7 @@ import { getPendingInvitationsForUser, acceptInvitation, declineInvitation, Spac
 import { initializeAuthCache } from '@adaven/platform-core';
 import { showToast } from '../lib/toast';
 import { confirmDestructive, confirmThen } from '../lib/alertWeb';
-import { getProductUi } from '../product';
+import { filterToAllowedSpaces, getProductUi } from '../product';
 
 export default function SetupHouseholdScreen() {
   const product = getProductUi();
@@ -151,7 +151,7 @@ export default function SetupHouseholdScreen() {
             setSelectedInvitation(null);
           }
 
-          const spaces = await getUserSpaces();
+          const spaces = filterToAllowedSpaces(await getUserSpaces());
 
           if (spaces.length === 0) {
             if (remainingInvitations.length === 0) {
@@ -312,6 +312,8 @@ export default function SetupHouseholdScreen() {
 
             {mode === 'create' && (
               <View style={stylesWeb.form}>
+                {product.spaceKinds.length > 1 ? (
+                <>
                 <Text style={stylesWeb.sectionLabel}>Space type</Text>
                 <View style={stylesWeb.spaceKindRow}>
                   {product.spaceKinds.map((opt) => (
@@ -331,6 +333,8 @@ export default function SetupHouseholdScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
+                </>
+                ) : null}
                 {product.renderSetupExtras?.({ kind: spaceKind, extras, setExtras })}
 
 
@@ -430,6 +434,8 @@ export default function SetupHouseholdScreen() {
         {/* 创建模式 - 首位展示 */}
         {mode === 'create' && (
           <View style={styles.createSection}>
+            {product.spaceKinds.length > 1 ? (
+            <>
             <Text style={styles.sectionLabel}>Space type</Text>
             <View style={styles.spaceKindRow}>
               {product.spaceKinds.map((opt) => (
@@ -449,6 +455,8 @@ export default function SetupHouseholdScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+            </>
+            ) : null}
             {product.renderSetupExtras?.({ kind: spaceKind, extras, setExtras })}
 
 

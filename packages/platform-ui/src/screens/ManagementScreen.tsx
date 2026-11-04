@@ -17,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { getCurrentSpace, getCurrentUser, getUserSpaces, setCurrentSpace, signOut, initializeAuthCache, updateCachedUser, updateCachedSpace, getPlatformClient, type PlatformSpace, type PlatformUserSpace, type PlatformUser } from '@adaven/platform-core';
 import { showToast } from '../lib/toast';
 import { confirmDestructive } from '../lib/alertWeb';
-import { getProductUi, getManagementMenu } from '../product';
+import { filterToAllowedSpaces, getProductUi, getManagementMenu } from '../product';
 import { SpaceSwitcherModal } from '../SpaceSwitcherModal';
 import { useWebViewportKind } from '../lib/web-viewport';
 import * as ImagePicker from 'expo-image-picker';
@@ -161,7 +161,16 @@ export default function ManagementScreen() {
     try {
       setLoading(true);
       // 使用缓存，不需要强制刷新（除非数据被修改了）
-      const spaceData = await getCurrentSpace();
+      let spaceData = await getCurrentSpace();
+      if (spaceData && filterToAllowedSpaces([{ space: spaceData }]).length === 0) {
+        const books = filterToAllowedSpaces(await getUserSpaces());
+        if (books[0]) {
+          await setCurrentSpace(books[0].spaceId);
+          spaceData = await getCurrentSpace(true);
+        } else {
+          spaceData = null;
+        }
+      }
       if (spaceData) {
         setSpace(spaceData);
         setSpaceName(spaceData.name);
@@ -237,7 +246,7 @@ export default function ManagementScreen() {
 
   const loadSpaces = async () => {
     try {
-      const data = await getUserSpaces();
+      const data = filterToAllowedSpaces(await getUserSpaces());
       setSpaces(data);
     } catch (error) {
       console.error('Error loading spaces:', error);

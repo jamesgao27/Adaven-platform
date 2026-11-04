@@ -15,6 +15,7 @@ import { initializeAuthCache } from '@adaven/platform-core';
 import { getPendingInvitationsForUser, acceptInvitation, declineInvitation } from '@adaven/platform-core';
 import { showToast } from '../lib/toast';
 import { confirmDestructive } from '../lib/alertWeb';
+import { filterToAllowedSpaces } from '../product';
 
 export default function HandleInvitationsScreen() {
   const router = useRouter();
@@ -137,7 +138,10 @@ export default function HandleInvitationsScreen() {
   const continueAfterInvitations = async () => {
     try {
       // 并行拉取 user + spaces，减少卡顿，直接进入后续流程（Later/回退后不卡）
-      const [user, spaces] = await Promise.all([getCurrentUser(true), getUserSpaces()]);
+      const [user, spaces] = await Promise.all([
+        getCurrentUser(true),
+        getUserSpaces().then((rows) => filterToAllowedSpaces(rows)),
+      ]);
 
       if (!user) {
         router.replace('/setup-space');

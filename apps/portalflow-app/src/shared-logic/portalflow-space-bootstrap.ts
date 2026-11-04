@@ -16,6 +16,10 @@ import { configureProductUi } from '@adaven/platform-ui';
 import { PortalflowSetupExtras } from './portalflow-setup-extras';
 import { getPortalflowSidebarNavItems } from './portalflow-sidebar-nav';
 import { getPortalflowManagementMenuItems } from './portalflow-management-menu';
+import { isReceiptap } from './feature-flags';
+
+const nativeScheme = isReceiptap ? 'vouchap://' : 'portalflow://';
+const publicOrigin = isReceiptap ? 'https://vouchap.com' : 'https://portalflow.app';
 
 function readAuthProvidersFromExtra(): Partial<Record<AuthProviderId, AuthProviderConfig>> {
   const extra = (Constants.expoConfig?.extra ?? {}) as Record<string, unknown>;
@@ -38,13 +42,13 @@ configurePlatformAuth({
   inviteDeepLinkBase:
     Constants.expoConfig?.extra?.supabaseUrl?.includes('localhost') || process.env.NODE_ENV === 'development'
       ? 'exp://localhost:8081'
-      : 'portalflow://',
+      : nativeScheme,
   emailRedirectTo:
     typeof window !== 'undefined' && window.location?.origin
       ? `${window.location.origin}/auth/confirm`
       : Constants.expoConfig?.extra?.supabaseUrl?.includes('localhost') || process.env.NODE_ENV === 'development'
         ? 'exp://localhost:8081/--/auth/confirm'
-        : 'https://portalflow.app/auth/confirm',
+        : `${publicOrigin}/auth/confirm`,
 });
 
 registerOnSpaceCreated(async ({ spaceId, kind, clientProfileType }) => {
@@ -71,19 +75,22 @@ registerOnSpaceCreated(async ({ spaceId, kind, clientProfileType }) => {
 });
 
 configureProductUi({
-  productName: 'Portalflow',
+  productName: isReceiptap ? 'Receiptap' : 'Portalflow',
   logo: require('../../assets/logo.png'),
   sidebarLogo: require('../../assets/logo3.png'),
   sloganLine1: 'Voucher Snapping,',
   sloganLine2: 'Balance Clarity.',
-  termsUrl: 'https://portalflow.app/terms',
-  privacyUrl: 'https://portalflow.app/privacy',
+  termsUrl: `${publicOrigin}/terms`,
+  privacyUrl: `${publicOrigin}/privacy`,
   homePath: '/',
-  spaceKinds: [
-    { id: 'consumer', label: 'Client' },
-    { id: 'provider', label: 'Firm' },
-  ],
+  spaceKinds: isReceiptap
+    ? [{ id: 'consumer', label: 'Personal' }]
+    : [
+        { id: 'consumer', label: 'Client' },
+        { id: 'provider', label: 'Firm' },
+      ],
   defaultSpaceKind: 'consumer',
+  ...(isReceiptap ? { allowedSpaceKinds: ['consumer'] } : {}),
   getSidebarNavItems: getPortalflowSidebarNavItems,
   getManagementMenuItems: (space) => getPortalflowManagementMenuItems(space?.kind as 'consumer' | 'provider' | undefined),
   uploadSpaceImage: async (fileUri, spaceId) => {
@@ -104,6 +111,9 @@ configureProductUi({
   canSubmitSetup: (kind, extras) =>
     kind !== 'provider' || typeof extras.verificationFileUri === 'string',
   createSpace: async ({ name, address, kind, extras }) => {
+    if (isReceiptap && kind === 'provider') {
+      return { error: new Error('Receiptap only creates bookkeeping spaces.') };
+    }
     const { createSpace } = await import('./auth');
     const { uploadFirmVerificationFile } = await import('./supabase');
     const { getCurrentUser } = await import('@adaven/platform-core');

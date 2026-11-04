@@ -1,1 +1,7 @@
 project_id = "foyecolycmxcneflpant"
+
+# Expose provider, consumer, crm so PostgREST / supabase-js .schema() and Hub product-ops work.
+[api]
+enabled = true
+schemas = ["public", "graphql_public", "provider", "consumer", "crm"]
+extra_search_path = ["public", "extensions"]

@@ -1,4 +1,4 @@
-import { Stack, usePathname } from 'expo-router';
+import { Stack, usePathname, useRouter } from 'expo-router';
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet, Platform, Text } from 'react-native';
 import * as Font from 'expo-font';
@@ -16,6 +16,7 @@ import { ChatPanelErrorBoundary } from '@/components/ChatPanelErrorBoundary';
 import { ChatPanelProvider, useChatPanel, type ChatPanelType } from '../contexts/ChatPanelContext';
 import { getWebStackHeaderLeftScreenOptions } from '../lib/web-stack-header-left';
 import { useWebViewportKind } from '../lib/web-viewport';
+import { isReceiptap } from '@/lib/feature-flags';
 
 /** 基础数据设置页：这些页不显示 chat-to-log 气泡（已打开的右栏保留） */
 function isSettingsPage(pathname: string): boolean {
@@ -139,6 +140,7 @@ function defaultChatOpen(pathname: string | null): boolean {
 
 function LayoutContent() {
   const pathname = usePathname();
+  const router = useRouter();
   const { isDesktopWeb } = useWebViewportKind();
   // 首帧 pathname 可能未就绪（路由水合），用 URL 兜底，避免 Clients 页先显示 Eric 再闪成 Cody
   const pathnameForType =
@@ -165,6 +167,13 @@ function LayoutContent() {
     if (Platform.OS !== 'web' || !showSidebar) return;
     loadSpace();
   }, [loadSpace, showSidebar, pathname]);
+
+  useEffect(() => {
+    if (!isReceiptap || !pathname) return;
+    if (pathname.startsWith('/firm') || pathname.startsWith('/tax-filing')) {
+      router.replace('/');
+    }
+  }, [pathname, router]);
 
   const isFirmPending =
     Platform.OS === 'web' &&

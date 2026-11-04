@@ -37,6 +37,10 @@ npx supabase db query --linked -f supabase/migrations/20260917180000_grant_hub_s
 
 `20260917190000_fix_subscription_space_target_and_accounts.sql` — SKU `space_target` firm/client → provider/consumer so Hub-granted subscriptions activate; rename `payment_accounts` → `accounts` and `receipts.payment_account_id` → `account_id` (plus `input_type`) so expenses list matches the app.
 
+## PostgREST schemas wiped again (2026-11-03)
+
+`authenticator.pgrst.db_schemas` was reset to `public, graphql_public` only (migration `20260904150000` still applied). Hub `product-ops` then returns PGRST106 on `crm`, and the app loses `provider` / `consumer`. Re-applied `20261104020000_reassert_postgrest_schemas.sql` and marked it applied. If Adaven-CRM shows Edge Function non-2xx for Portalflow, re-run that file and `NOTIFY pgrst, 'reload config'`.
+
 ## Preset Service Catalog (2026-09-17)
 
 Portalflow `crm.preset_templates` was still the original seed (English `2025 …` names, no covers). Live Vouchap names/tax labels/covers were copied onto **preset tables only** (`20260917200000_sync_preset_templates_from_vouchap.sql`). Eight PNGs uploaded to Portalflow Storage bucket `marketplace/` (same filenames as Vouchap). Existing `provider.skus` were not rewritten; new Firm registration copies the updated presets.
