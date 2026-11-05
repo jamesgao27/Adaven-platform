@@ -444,7 +444,7 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 24,
   },
-  logoImgMobile: { width: 64, height: 64 },
+  logoImgMobile: { width: 64, height: 64, borderRadius: '22%', overflow: 'hidden' },
   brandNameMobile: {
     fontSize: 32,
     fontWeight: '800',
@@ -573,6 +573,8 @@ const styles = StyleSheet.create({
   logoImg: {
     width: 64,
     height: 64,
+    borderRadius: '22%',
+    overflow: 'hidden',
   },
   brandName: {
     fontSize: 32,

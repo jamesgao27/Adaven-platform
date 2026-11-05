@@ -257,7 +257,8 @@ const styles = StyleSheet.create({
     height: 96,
     minWidth: 96,
     minHeight: 96,
-    borderRadius: 18,
+    borderRadius: '22%',
+    overflow: 'hidden',
     alignSelf: 'center',
   },
   brandText: {
