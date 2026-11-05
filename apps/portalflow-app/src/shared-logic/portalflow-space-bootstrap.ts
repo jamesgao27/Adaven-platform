@@ -76,8 +76,8 @@ registerOnSpaceCreated(async ({ spaceId, kind, clientProfileType }) => {
 
 configureProductUi({
   productName: isReceiptap ? 'Receiptap' : 'Portalflow',
-  logo: require('../../assets/logo.png'),
-  sidebarLogo: require('../../assets/logo3.png'),
+  logo: isReceiptap ? require('../../assets/receiptap-icon.png') : require('../../assets/logo.png'),
+  sidebarLogo: isReceiptap ? require('../../assets/receiptap-icon.png') : require('../../assets/logo3.png'),
   sloganLine1: 'Voucher Snapping,',
   sloganLine2: 'Balance Clarity.',
   termsUrl: `${publicOrigin}/terms`,

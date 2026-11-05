@@ -43,7 +43,7 @@ export default {
     version: isReceiptap ? "2.6.7" : pkg.version,
     owner: "aimlink",
     orientation: "default",
-    icon: "./assets/logo2.png",
+    icon: isReceiptap ? "./assets/receiptap-icon.png" : "./assets/logo2.png",
     scheme,
     userInterfaceStyle: "light",
     splash: {
@@ -109,7 +109,7 @@ export default {
     ],
     web: {
       name: appName,
-      favicon: "./assets/favicon.png"
+      favicon: isReceiptap ? "./assets/receiptap-icon.png" : "./assets/favicon.png"
     },
     ...(process.env.EXPO_PUBLIC_WEB_BASE_PATH
       ? { experiments: { baseUrl: process.env.EXPO_PUBLIC_WEB_BASE_PATH } }
