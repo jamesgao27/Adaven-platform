@@ -22,7 +22,7 @@ import {
   type PlatformUser,
 } from '@adaven/platform-core';
 
-import { getProductUi } from '../product';
+import { getProductUi, resolveProductBrand } from '../product';
 
 const SIDEBAR_WIDTH = 240;
 const HIDE_SIDEBAR_ROUTES = [
@@ -60,6 +60,7 @@ export default function WebSidebar() {
   const [pendingClaimCount, setPendingClaimCount] = useState(0);
   const [spaceLoaded, setSpaceLoaded] = useState(false);
 
+  const brand = resolveProductBrand(currentSpace);
   const navItems: NavItem[] = (product.getSidebarNavItems?.(currentSpace) ?? []).map((item) => ({
     path: item.path,
     label: item.label,
@@ -126,11 +127,11 @@ export default function WebSidebar() {
     <View style={styles.sidebar}>
       <View style={styles.brand}>
         <Image
-          source={product.sidebarLogo ?? product.logo}
+          source={brand.sidebarLogo ?? brand.logo}
           style={styles.logoImage}
-          resizeMode="contain"
+          resizeMode="cover"
         />
-        <Text style={styles.brandText}>{product.productName}</Text>
+        <Text style={styles.brandText}>{brand.productName}</Text>
       </View>
 
       <View style={styles.mainNavSection}>

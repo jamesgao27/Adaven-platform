@@ -78,6 +78,21 @@ configureProductUi({
   productName: isReceiptap ? 'Receiptap' : 'Portalflow',
   logo: isReceiptap ? require('../../assets/receiptap-icon.png') : require('../../assets/logo.png'),
   sidebarLogo: isReceiptap ? require('../../assets/receiptap-icon.png') : require('../../assets/logo3.png'),
+  getBrand: (space) => {
+    const receiptap = {
+      productName: 'Receiptap',
+      logo: require('../../assets/receiptap-icon.png') as number,
+      sidebarLogo: require('../../assets/receiptap-icon.png') as number,
+    };
+    const portalflow = {
+      productName: 'Portalflow',
+      logo: require('../../assets/logo.png') as number,
+      sidebarLogo: require('../../assets/logo3.png') as number,
+    };
+    if (isReceiptap) return receiptap;
+    if (space?.kind === 'consumer') return receiptap;
+    return portalflow;
+  },
   sloganLine1: 'Voucher Snapping,',
   sloganLine2: 'Balance Clarity.',
   termsUrl: `${publicOrigin}/terms`,

@@ -20,6 +20,12 @@ export type SidebarNavItem = {
   match?: (path: string) => boolean;
 };
 
+export type ProductBrand = {
+  productName: string;
+  logo: ImageSourcePropType;
+  sidebarLogo?: ImageSourcePropType;
+};
+
 export type ManagementMenuItem = {
   id: string;
   title: string;
@@ -50,6 +56,8 @@ export type ProductUiConfig = {
   productName: string;
   logo: ImageSourcePropType;
   sidebarLogo?: ImageSourcePropType;
+  /** Logged-in shell. A null space keeps the pre-login brand. */
+  getBrand?: (space: PlatformSpace | null) => ProductBrand;
   sloganLine1: string;
   sloganLine2: string;
   termsUrl: string;
@@ -84,6 +92,16 @@ let config: ProductUiConfig | null = null;
 
 export function configureProductUi(next: ProductUiConfig): void {
   config = next;
+}
+
+export function resolveProductBrand(space: PlatformSpace | null): ProductBrand {
+  const product = getProductUi();
+  if (product.getBrand) return product.getBrand(space);
+  return {
+    productName: product.productName,
+    logo: product.logo,
+    sidebarLogo: product.sidebarLogo,
+  };
 }
 
 export function getProductUi(): ProductUiConfig {

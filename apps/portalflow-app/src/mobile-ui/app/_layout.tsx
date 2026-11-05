@@ -169,6 +169,40 @@ function LayoutContent() {
   }, [loadSpace, showSidebar, pathname]);
 
   useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const applyTitle = (kind?: string) => {
+      if (isReceiptap) {
+        document.title = 'Receiptap';
+        return;
+      }
+      if (!shouldShowWebSidebar(pathname ?? '/')) {
+        document.title = 'Portalflow';
+        return;
+      }
+      document.title = kind === 'consumer' ? 'Receiptap' : 'Portalflow';
+    };
+    applyTitle();
+    let cancelled = false;
+    getCurrentSpace()
+      .then((space) => {
+        if (!cancelled) applyTitle(space?.kind);
+      })
+      .catch(() => {
+        if (!cancelled) applyTitle();
+      });
+    const onSpace = () => {
+      getCurrentSpace(true)
+        .then((space) => applyTitle(space?.kind))
+        .catch(() => applyTitle());
+    };
+    window.addEventListener('adaven_space_updated', onSpace);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('adaven_space_updated', onSpace);
+    };
+  }, [pathname]);
+
+  useEffect(() => {
     if (!isReceiptap || !pathname) return;
     if (pathname.startsWith('/firm') || pathname.startsWith('/tax-filing')) {
       router.replace('/');
