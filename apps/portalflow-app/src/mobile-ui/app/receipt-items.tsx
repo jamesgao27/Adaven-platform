@@ -20,6 +20,7 @@ import { supabase } from '@/lib/supabase';
 import { getCategories } from '@/lib/categories';
 import { getAttributions } from '@/lib/attributions';
 import { sortScopeTagsForDisplay } from '@/lib/sort-scope-tags-for-display';
+import { getExchangeRates, sumAmountsInCurrency } from '@/lib/exchange-rates';
 import type { ReceiptLineItemListRow, Category, Attribution } from '@/types';
 import { showToast } from '@/lib/toast';
 import { confirmThen } from '@/lib/alertWeb';
@@ -60,6 +61,31 @@ function sectionTitleForKey(
   }
 }
 
+/** Same as the Expenses list: the most common currency in the group is shown, other currencies are converted. */
+function sectionAmountStats(
+  rows: ReceiptLineItemListRow[],
+  exchangeRates: { [key: string]: number } | null,
+): { totalAmount: number; currency: string; amountColor: string } {
+  const currencies = rows.map(r => r.currency || 'USD');
+  const dominantCurrency =
+    currencies.length > 0
+      ? (currencies
+          .sort(
+            (a, b) =>
+              currencies.filter(v => v === a).length - currencies.filter(v => v === b).length,
+          )
+          .pop() as string)
+      : 'USD';
+  const totalAmount = exchangeRates
+    ? sumAmountsInCurrency(
+        rows.map(r => ({ amount: r.price, currency: r.currency || 'USD' })),
+        dominantCurrency || 'USD',
+        exchangeRates,
+      )
+    : 0;
+  return { totalAmount, currency: dominantCurrency || 'USD', amountColor: '#6C5CE7' };
+}
+
 export default function ReceiptLineItemsScreen() {
   const { isDesktopWeb } = useWebViewportKind();
   const router = useRouter();
@@ -72,6 +98,7 @@ export default function ReceiptLineItemsScreen() {
   const loadedOnce = useRef(false);
 
   const [groupBy, setGroupBy] = useState<GroupByType>('none');
+  const [exchangeRates, setExchangeRates] = useState<{ [key: string]: number } | null>(null);
   const [showGroupMenu, setShowGroupMenu] = useState(false);
   const [groupPopoverRect, setGroupPopoverRect] = useState<{ left: number; top: number } | null>(null);
 
@@ -210,6 +237,7 @@ export default function ReceiptLineItemsScreen() {
   useEffect(() => {
     getCategories('expense').then(setCategories).catch(() => {});
     getAttributions('expense').then(setAttributions).catch(() => {});
+    getExchangeRates().then(setExchangeRates).catch(() => {});
   }, []);
 
   const onRefresh = () => {
@@ -310,14 +338,18 @@ export default function ReceiptLineItemsScreen() {
       const raw = map.get(key)!;
       const data = sortInner(raw);
       const title = sectionTitleForKey(groupBy, key, data[0]);
+      const amount = sectionAmountStats(data, exchangeRates);
       return {
         title,
         data,
         count: data.length,
         countLabel: 'items',
+        totalAmount: amount.totalAmount,
+        currency: amount.currency,
+        amountColor: amount.amountColor,
       };
     });
-  }, [searched, groupBy, sortKey, sortDirection, columns]);
+  }, [searched, groupBy, sortKey, sortDirection, columns, exchangeRates]);
 
   const useSectionMode = groupBy !== 'none' && searched.length > 0;
 
