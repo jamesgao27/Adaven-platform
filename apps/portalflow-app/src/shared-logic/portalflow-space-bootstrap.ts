@@ -78,7 +78,7 @@ configureProductUi({
   productName: isReceiptap ? 'Receiptap' : 'Portalflow',
   logo: isReceiptap ? require('../../assets/receiptap-icon.png') : require('../../assets/logo.png'),
   sidebarLogo: isReceiptap ? require('../../assets/receiptap-icon.png') : require('../../assets/logo3.png'),
-  getBrand: (space) => {
+  getBrand: (_space) => {
     const receiptap = {
       productName: 'Receiptap',
       logo: require('../../assets/receiptap-icon.png') as number,
@@ -90,11 +90,10 @@ configureProductUi({
       sidebarLogo: require('../../assets/logo3.png') as number,
     };
     if (isReceiptap) return receiptap;
-    if (space?.kind === 'consumer') return receiptap;
     return portalflow;
   },
-  sloganLine1: 'Voucher Snapping,',
-  sloganLine2: 'Balance Clarity.',
+  sloganLine1: isReceiptap ? 'Voucher Snapping,' : 'Client services,',
+  sloganLine2: isReceiptap ? 'Balance Clarity.' : 'in one firm workspace.',
   termsUrl: `${publicOrigin}/terms`,
   privacyUrl: `${publicOrigin}/privacy`,
   homePath: '/',
@@ -104,7 +103,7 @@ configureProductUi({
         { id: 'consumer', label: 'Client' },
         { id: 'provider', label: 'Firm' },
       ],
-  defaultSpaceKind: 'consumer',
+  defaultSpaceKind: isReceiptap ? 'consumer' : 'provider',
   ...(isReceiptap ? { allowedSpaceKinds: ['consumer'] } : {}),
   getSidebarNavItems: getPortalflowSidebarNavItems,
   getManagementMenuItems: (space) => getPortalflowManagementMenuItems(space?.kind as 'consumer' | 'provider' | undefined),

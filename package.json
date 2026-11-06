@@ -16,6 +16,7 @@
     "portalflow:android": "npm run android --workspace=portalflow-app",
     "portalflow:export:web": "npm run web:export --workspace=portalflow-app",
     "portalflow:deploy:web": "npm run deploy:web --workspace=portalflow-app",
+    "receiptap:deploy:web": "npm run deploy:web:receiptap --workspace=portalflow-app",
     "wholestore:start": "npm run start --workspace=wholestore-app",
     "wholestore:web": "npm run web --workspace=wholestore-app",
     "wholestore:export:web": "npm run web:export --workspace=wholestore-app",

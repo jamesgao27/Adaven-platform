@@ -1,5 +1,6 @@
 import type { SpaceKind } from '@/types';
 import type { ManagementMenuItem } from '@adaven/platform-ui';
+import { isReceiptap } from './feature-flags';
 
 const PRODUCT_ITEMS: ManagementMenuItem[] = [
   {
@@ -57,6 +58,9 @@ const PRODUCT_ITEMS: ManagementMenuItem[] = [
 export function getPortalflowManagementMenuItems(kind?: SpaceKind): ManagementMenuItem[] {
   if (kind === 'provider') {
     return PRODUCT_ITEMS.filter((item) => item.id === 'permissions' || item.id === 'billing');
+  }
+  if (!isReceiptap) {
+    return PRODUCT_ITEMS.filter((item) => item.id === 'claim' || item.id === 'billing');
   }
   return PRODUCT_ITEMS.filter((item) => item.id !== 'claim' && item.id !== 'permissions');
 }

@@ -2,7 +2,7 @@
 
 Git SoT is **`jamesgao27/Adaven-platform`**. Pages project slug is **`portalflow`**. Do **not** deploy this app to live Vouchap (`vouchap`). Historical `jamesgao27/Vouchap` stays on that old project.
 
-**Do not connect Git** on the Pages project. Push to `main` that touches `apps/portalflow-app/**` ships this app only (GitHub Actions → Direct Upload). Kernel-only commits do not deploy; use Actions **Run workflow** or the CLI. See **`docs/PUBLISH.md`**.
+**Do not connect Git** on the Pages project. Push to `main` that touches `apps/portalflow-app/**` ships Portalflow web and the Receiptap web export (`APP_VARIANT=receiptap`, Pages **`receiptap`**, domain `receiptap.aim.link`). Kernel-only commits do not deploy. See **`docs/PUBLISH.md`**.
 
 Kernel screens come from `@adaven/platform-ui`.
 

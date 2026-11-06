@@ -16,7 +16,7 @@ import { ChatPanelErrorBoundary } from '@/components/ChatPanelErrorBoundary';
 import { ChatPanelProvider, useChatPanel, type ChatPanelType } from '../contexts/ChatPanelContext';
 import { getWebStackHeaderLeftScreenOptions } from '../lib/web-stack-header-left';
 import { useWebViewportKind } from '../lib/web-viewport';
-import { isReceiptap } from '@/lib/feature-flags';
+import { isBookkeepingPath, isReceiptap } from '@/lib/feature-flags';
 
 /** 基础数据设置页：这些页不显示 chat-to-log 气泡（已打开的右栏保留） */
 function isSettingsPage(pathname: string): boolean {
@@ -164,50 +164,27 @@ function LayoutContent() {
   }, []);
 
   useEffect(() => {
-    if (Platform.OS !== 'web' || !showSidebar) return;
+    if (isReceiptap && !(Platform.OS === 'web' && showSidebar)) return;
     loadSpace();
   }, [loadSpace, showSidebar, pathname]);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
-    const applyTitle = (kind?: string) => {
-      if (isReceiptap) {
-        document.title = 'Receiptap';
-        return;
-      }
-      if (!shouldShowWebSidebar(pathname ?? '/')) {
-        document.title = 'Portalflow';
-        return;
-      }
-      document.title = kind === 'consumer' ? 'Receiptap' : 'Portalflow';
-    };
-    applyTitle();
-    let cancelled = false;
-    getCurrentSpace()
-      .then((space) => {
-        if (!cancelled) applyTitle(space?.kind);
-      })
-      .catch(() => {
-        if (!cancelled) applyTitle();
-      });
-    const onSpace = () => {
-      getCurrentSpace(true)
-        .then((space) => applyTitle(space?.kind))
-        .catch(() => applyTitle());
-    };
-    window.addEventListener('adaven_space_updated', onSpace);
-    return () => {
-      cancelled = true;
-      window.removeEventListener('adaven_space_updated', onSpace);
-    };
+    document.title = isReceiptap ? 'Receiptap' : 'Portalflow';
   }, [pathname]);
 
   useEffect(() => {
-    if (!isReceiptap || !pathname) return;
-    if (pathname.startsWith('/firm') || pathname.startsWith('/tax-filing')) {
+    if (!pathname) return;
+    if (isReceiptap) {
+      if (pathname.startsWith('/firm') || pathname.startsWith('/tax-filing')) {
+        router.replace('/');
+      }
+      return;
+    }
+    if (currentSpace?.kind === 'consumer' && isBookkeepingPath(pathname)) {
       router.replace('/');
     }
-  }, [pathname, router]);
+  }, [pathname, router, currentSpace?.kind]);
 
   const isFirmPending =
     Platform.OS === 'web' &&
@@ -290,7 +267,12 @@ textarea:focus-within {
     styles.mainArea,
   ];
 
-  const chatDisabled = isDesktopWeb && isChatDisabledPath(pathname ?? '/');
+  const chatDisabled =
+    isDesktopWeb &&
+    (isChatDisabledPath(pathname ?? '/') ||
+      (!isReceiptap &&
+        currentSpace?.kind === 'consumer' &&
+        !pathname?.startsWith('/tax-filing')));
 
   return (
     <View style={[styles.root, showSidebar && styles.webRow]}>

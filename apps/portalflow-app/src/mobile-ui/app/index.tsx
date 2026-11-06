@@ -19,7 +19,8 @@ import Svg, { Path, Rect, G, Circle, Text as SvgText } from 'react-native-svg';
 import WebDashboardView from '@/components/WebDashboardView';
 import CrmDashboardView from '@/components/CrmDashboardView';
 import { FirmPendingOverlay } from '@/components/FirmPendingOverlay';
-import { showAiInventory, showTaxFiling } from '@/lib/feature-flags';
+import { isReceiptap, showAiInventory, showTaxFiling } from '@/lib/feature-flags';
+import ClientServicesHome from '@/components/ClientServicesHome';
 import { getFirmClientsListBundle } from '@/lib/firm';
 import { getPendingInviteesForEmail } from '@/lib/firm-clients';
 import type { ClientDisplayStatus } from '@/types';
@@ -94,6 +95,7 @@ export default function HomeScreen() {
 
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const { isDesktopWeb, isMobileWeb } = useWebViewportKind();
+  const servicesClient = !isReceiptap && currentSpace != null && currentSpace.kind !== 'provider';
   const sloganFontSize = Math.min(32, Math.max(24, Math.round(screenWidth * 0.082)));
   const isCompact = screenHeight < 750 || screenWidth < 360;
   const mainCircleSize = isCompact ? 160 : 200;
@@ -862,7 +864,13 @@ export default function HomeScreen() {
       <>
         <View style={styles.container}>
           <StatusBar style="dark" />
-          {currentSpace?.kind === 'provider' ? <CrmDashboardView /> : <WebDashboardView />}
+          {currentSpace?.kind === 'provider' ? (
+            <CrmDashboardView />
+          ) : servicesClient ? (
+            <ClientServicesHome />
+          ) : isReceiptap ? (
+            <WebDashboardView />
+          ) : null}
         </View>
         {subscriptionExpiredModal}
       </>
@@ -951,9 +959,11 @@ export default function HomeScreen() {
           <FirmPendingOverlay />
         ) : currentSpace?.kind === 'provider' ? (
           <CrmDashboardView />
-        ) : isMobileWeb ? (
+        ) : servicesClient ? (
+          <ClientServicesHome />
+        ) : isReceiptap && isMobileWeb ? (
           <WebDashboardView homeCompact />
-        ) : (
+        ) : isReceiptap ? (
           <>
             <Text style={[styles.title, { fontSize: sloganFontSize, lineHeight: sloganLineHeight, marginBottom: sloganMarginBottom }]}>📸</Text>
             <Text
@@ -989,7 +999,7 @@ export default function HomeScreen() {
               </View>
             </View>
           </>
-        )}
+        ) : null}
       </View>
 
       </ScrollView>
@@ -1021,7 +1031,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      ) : currentSpace?.kind !== 'provider' ? (
+      ) : isReceiptap && currentSpace?.kind !== 'provider' ? (
         <View style={styles.bottomNav}>
           <View style={styles.buttonsRow}>
             <TouchableOpacity

@@ -22,6 +22,18 @@ export function getPortalflowSidebarNavItems(space: PlatformSpace | null): Sideb
     ];
   }
 
+  if (!isReceiptap) {
+    return [
+      { path: '/', label: 'Services', icon: 'grid-outline', match: (p) => p === '/' || p === '' },
+      {
+        path: '/tax-filing',
+        label: 'Tax filing',
+        icon: 'document-text-outline',
+        match: (p) => p.startsWith('/tax-filing'),
+      },
+    ];
+  }
+
   const items: SidebarNavItem[] = [
     { path: '/', label: 'Dashboard', icon: 'grid-outline', match: (p) => p === '/' || p === '' },
     {
