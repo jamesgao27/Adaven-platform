@@ -35,7 +35,7 @@ export interface FirmClientInviteToken {
 const CLIENT_JOIN_BASE_URL =
   (Constants.expoConfig?.extra as any)?.clientJoinBaseUrl ||
   process.env.EXPO_PUBLIC_CLIENT_JOIN_URL ||
-  'https://portalflow.app/client-join';
+  'https://portalflow.pages.dev/client-join';
 
 /** 根据 token 构造发给 Client 的邀请链接。firmName 为 firm space 名称，落地页将直接展示 */
 export function buildFirmClientInviteUrl(token: string, firmName?: string | null): string {

@@ -334,6 +334,10 @@ textarea:focus-within {
           }}
         />
         <Stack.Screen
+          name="client-join"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
           name="portal/join"
           options={{ headerShown: false }}
         />
