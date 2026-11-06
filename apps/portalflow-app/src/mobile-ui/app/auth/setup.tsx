@@ -20,15 +20,11 @@ import { Ionicons } from '@expo/vector-icons';
 import {
   getCurrentUser,
   getUserSpaces,
-  setCurrentSpace,
   isAuthenticated,
-  createSpace,
 } from '@/lib/auth';
 import {
   getFirmClientInviteInfo,
-  acceptFirmClientInvite,
   getPendingInviteesForEmail,
-  inviteeClaimEngagement,
   type FirmClientInviteInfo,
 } from '@/lib/firm-clients';
 import { resolveSkuForPreview } from '../../../shared-logic/firm';
@@ -143,10 +139,28 @@ export default function ClientSetupScreen() {
 
     const authed = await isAuthenticated();
     if (!authed) {
-      router.replace({
-        pathname: '/login',
-        params: claimMode ? { redirect: '/auth/setup', firmClientId: firmClientIdParam } : { redirect: '/auth/setup', token },
+      setStatus('loading');
+      setErrorMessage('');
+      if (token) {
+        const infoRes = await getFirmClientInviteInfo(token);
+        if (infoRes.error || !infoRes.info) {
+          setStatus('error');
+          setErrorMessage(infoRes.error?.message ?? 'Invalid or expired invite link.');
+          return;
+        }
+        setInviteInfo(infoRes.info);
+        setStatus('ready');
+        return;
+      }
+      setClaimFirmClientId(firmClientIdParam);
+      setInviteInfo({
+        firmSpaceId: '',
+        firmName: 'Your firm',
+        inviterUserId: '',
+        skuId: '',
+        tokenId: firmClientIdParam,
       });
+      setStatus('ready');
       return;
     }
 
@@ -311,83 +325,16 @@ export default function ClientSetupScreen() {
   // 未登录时展示落地页，由用户点击 "Sign in" 再跳转
 
   const performConfirmAction = useCallback(async () => {
-    if (!inviteInfo || !selectedSpaceId) return;
+    if (!inviteInfo) return;
     if (!claimMode && !token) return;
-
-    const isNewSpace = selectedSpaceId === NEW_SPACE_SENTINEL_ID;
-    if (isNewSpace && !newSpaceName.trim()) {
-      showToast('Please enter space name', 'error');
-      return;
-    }
-
-    let clientSpaceId: string;
-    if (isNewSpace) {
-      setStatus('submitting');
-      const { space, error: createError } = await createSpace(
-        newSpaceName.trim(),
-        undefined,
-        { kind: 'consumer' }
-      );
-      if (!space || createError) {
-        setStatus('ready');
-        showToast(createError?.message ?? 'Failed to create space', 'error');
-        return;
-      }
-      clientSpaceId = space.id;
-    } else {
-      clientSpaceId = selectedSpaceId;
-    }
-
-    if (claimFirmClientId) {
-      setStatus('submitting');
-      const { result, error } = await inviteeClaimEngagement(claimFirmClientId, clientSpaceId);
-      if (error || !result) {
-        setStatus('ready');
-        showToast(error?.message ?? 'Failed to claim engagement', 'error');
-        return;
-      }
-      await setCurrentSpace(result.clientSpaceId);
-      showToast('Space linked. Engagement created.', 'success', 2200, 'center-success');
-      router.replace('/tax-filing');
-      return;
-    }
-
-    const user = await getCurrentUser(isNewSpace ? true : undefined);
-    if (!user) {
-      showToast('Please sign in again', 'error');
-      setStatus('need_login');
-      return;
-    }
-
-    setStatus('submitting');
-    const { result, error } = await acceptFirmClientInvite(token, clientSpaceId, user.id);
-
-    if (error) {
-      setStatus('ready');
-      showToast(error.message ?? 'Failed to link space', 'error');
-      return;
-    }
-
-    if (result) {
-      await setCurrentSpace(clientSpaceId);
-      showToast('Space linked. Engagement created.', 'success', 2200, 'center-success');
-      router.replace('/tax-filing');
-    } else {
-      setStatus('ready');
-      showToast('Could not complete. Try again.', 'error');
-    }
-  }, [
-    inviteInfo,
-    selectedSpaceId,
-    claimMode,
-    token,
-    newSpaceName,
-    claimFirmClientId,
-    router,
-  ]);
+    router.replace({
+      pathname: '/portal/join',
+      params: claimMode ? { firmClientId: firmClientIdParam } : { token },
+    });
+  }, [inviteInfo, claimMode, token, firmClientIdParam, router]);
 
   const handleConfirm = () => {
-    if (!inviteInfo || !selectedSpaceId) return;
+    if (!inviteInfo) return;
     if (!claimMode && !token) return;
     setConsentVisible(true);
   };
@@ -515,7 +462,7 @@ export default function ClientSetupScreen() {
         <Text style={styles.firmNameText}>{firmName}</Text>
       </View>
       <Text style={styles.pageSubtitle}>
-        Select a space to link and start tax filing:
+        Agree to the terms, then confirm your email with a code.
       </Text>
       {skuName ? (
         <View style={styles.skuNameBlock}>
@@ -546,350 +493,15 @@ export default function ClientSetupScreen() {
     }
   }
 
-  const renderSpaceForm = (variant?: 'web' | 'mobile') => {
-    const isMobileVariant = variant === 'mobile';
-    const narrowWebListViewport =
-      isWeb && !isMobileVariant && isNarrowWeb
-        ? Math.max(280, Math.min(360, windowHeight - 380))
-        : null;
-    const bottomBlock = (
-      <>
-        <TouchableOpacity
-          style={[
-            styles.newSpaceOption,
-            isWeb && styles.newSpaceOptionWeb,
-            selectedSpaceId === NEW_SPACE_SENTINEL_ID && styles.newSpaceOptionSelected,
-          ]}
-          onPress={() => setSelectedSpaceId(NEW_SPACE_SENTINEL_ID)}
-          activeOpacity={0.8}
-        >
-          <Ionicons
-            name={
-              selectedSpaceId === NEW_SPACE_SENTINEL_ID
-                ? 'radio-button-on'
-                : 'radio-button-off'
-            }
-            size={22}
-            color={selectedSpaceId === NEW_SPACE_SENTINEL_ID ? '#6C5CE7' : '#BDC3C7'}
-          />
-          <View style={styles.newSpaceTextWrap}>
-            <Text
-              style={[
-                styles.newSpaceTitle,
-                selectedSpaceId === NEW_SPACE_SENTINEL_ID && styles.newSpaceTitleSelected,
-              ]}
-              numberOfLines={1}
-            >
-              Create a new space
-            </Text>
-            <Text style={styles.newSpaceSubtitle} numberOfLines={1}>
-              Start with a brand new client space
-            </Text>
-          </View>
-        </TouchableOpacity>
-        <View style={styles.newSpaceInputReserve}>
-          {selectedSpaceId === NEW_SPACE_SENTINEL_ID ? (
-            <TextInput
-              style={styles.newSpaceInput}
-              placeholder="Enter new space name"
-              placeholderTextColor="#95A5A6"
-              value={newSpaceName}
-              onChangeText={setNewSpaceName}
-            />
-          ) : null}
-        </View>
-        {isWeb && (
-          <View style={[styles.actionRow, styles.actionRowWeb]}>
-            <TouchableOpacity
-              style={[styles.secondaryActionButton, styles.secondaryActionButtonWeb]}
-              onPress={() => router.replace(cancelOrBackTarget)}
-              disabled={status === 'submitting'}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.secondaryActionText}>{claimMode ? 'Deal with later' : 'Cancel'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.primaryButton,
-                styles.primaryButtonWeb,
-                styles.confirmButton,
-                ((!selectedSpaceId ||
-                  (selectedSpaceId === NEW_SPACE_SENTINEL_ID && !newSpaceName.trim()) ||
-                  status === 'submitting') &&
-                  styles.buttonDisabled),
-              ]}
-              onPress={handleConfirm}
-              disabled={
-                !selectedSpaceId ||
-                (selectedSpaceId === NEW_SPACE_SENTINEL_ID && !newSpaceName.trim()) ||
-                status === 'submitting'
-              }
-              activeOpacity={0.8}
-            >
-              {status === 'submitting' ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <Text style={styles.primaryButtonText}>Confirm</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        )}
-      </>
-    );
-
-    return (
-      <View style={[styles.linkLeft, isWeb && styles.linkLeftWeb]}>
-        <View style={[styles.linkLeftContent, isWeb && styles.linkLeftContentWeb, isMobileVariant && styles.linkLeftContentMobile]}>
-          <Text style={styles.sectionLabel}>Select a space</Text>
-          <View
-            style={[
-              styles.spaceListWrap,
-              isWeb && styles.spaceListWrapWeb,
-              isMobileVariant && spaces.length > 0 && styles.spaceListWrapMobile,
-              spaces.length === 0 && {
-                flex: 0,
-                flexGrow: 0,
-                flexShrink: 0,
-                height: 0,
-                minHeight: 0,
-                overflow: 'hidden' as const,
-                marginBottom: 0,
-              },
-              spaces.length > 0 && isMobileVariant && !isWeb && {
-                flex: undefined,
-                maxHeight: mobileSpaceListMaxHeight,
-                height:
-                  spaceListContentHeight > 0
-                    ? Math.min(spaceListContentHeight, mobileSpaceListMaxHeight)
-                    : mobileSpaceListMaxHeight,
-              },
-              spaces.length > 0 &&
-                !isWeb &&
-                !isMobileVariant && {
-                  height: Math.round(windowHeight * 0.28),
-                  flexDirection: 'column' as const,
-                },
-              spaces.length > 0 &&
-                isWeb &&
-                !isMobileVariant &&
-                !isNarrowWeb &&
-                typeof webSpaceListMaxHeight === 'number' &&
-                styles.spaceListWrapWebAdaptive,
-            ]}
-          >
-            <View
-              style={[
-                styles.spaceList,
-                !isWeb && styles.spaceListNativeFlex,
-                isWeb && styles.spaceListWeb,
-                spaces.length > 0 &&
-                  isWeb &&
-                  !isMobileVariant &&
-                  !isNarrowWeb &&
-                  typeof webSpaceListMaxHeight === 'number' && {
-                    maxHeight: webSpaceListMaxHeight,
-                  },
-                spaces.length > 0 &&
-                  isWeb &&
-                  !isMobileVariant &&
-                  isNarrowWeb &&
-                  narrowWebListViewport != null && {
-                    maxHeight: narrowWebListViewport,
-                  },
-              ]}
-            >
-              {isWeb ? (
-                // Web（含 Safari）：避免与外层页面 ScrollView 嵌套滚动；内层勿用 flex:1，否则撑满 maxHeight 造成空白
-                <View style={styles.spaceListInnerWeb}>
-                  {spaces.map((us, i) => {
-                    const isSelected = selectedSpaceId === us.spaceId;
-                    const name = us.space?.name ?? 'Unnamed space';
-                    const isLast = i === spaces.length - 1;
-                    return (
-                      <TouchableOpacity
-                        key={us.spaceId}
-                        style={[
-                          styles.spaceRow,
-                          isSelected && styles.spaceRowSelected,
-                          isLast && styles.spaceRowLast,
-                        ]}
-                        onPress={() => setSelectedSpaceId(us.spaceId)}
-                        activeOpacity={0.7}
-                      >
-                        <Ionicons
-                          name={isSelected ? 'radio-button-on' : 'radio-button-off'}
-                          size={22}
-                          color={isSelected ? '#6C5CE7' : '#BDC3C7'}
-                        />
-                        <Text
-                          style={[styles.spaceName, isSelected && styles.spaceNameSelected]}
-                          numberOfLines={1}
-                        >
-                          {name}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              ) : (
-                <ScrollViewWithScrollHint
-                  style={styles.spaceListInner}
-                  contentContainerStyle={[
-                    styles.spaceListInnerContent,
-                    isMobileVariant && styles.spaceListInnerContentMobile,
-                  ]}
-                  nestedScrollEnabled
-                  showsVerticalScrollIndicator={spaces.length > 4}
-                  onContentSizeChange={(_w, h) => setSpaceListContentHeight(h)}
-                >
-                  {spaces.map((us, i) => {
-                    const isSelected = selectedSpaceId === us.spaceId;
-                    const name = us.space?.name ?? 'Unnamed space';
-                    const isLast = i === spaces.length - 1;
-                    return (
-                      <TouchableOpacity
-                        key={us.spaceId}
-                        style={[
-                          styles.spaceRow,
-                          isSelected && styles.spaceRowSelected,
-                          isLast && styles.spaceRowLast,
-                        ]}
-                        onPress={() => setSelectedSpaceId(us.spaceId)}
-                        activeOpacity={0.7}
-                      >
-                        <Ionicons
-                          name={isSelected ? 'radio-button-on' : 'radio-button-off'}
-                          size={22}
-                          color={isSelected ? '#6C5CE7' : '#BDC3C7'}
-                        />
-                        <Text
-                          style={[styles.spaceName, isSelected && styles.spaceNameSelected]}
-                          numberOfLines={1}
-                        >
-                          {name}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollViewWithScrollHint>
-              )}
-            </View>
-          </View>
-          {isMobileVariant && (
-            <>
-              <TouchableOpacity
-                style={[
-                  styles.newSpaceOption,
-                  selectedSpaceId === NEW_SPACE_SENTINEL_ID && styles.newSpaceOptionSelected,
-                ]}
-                onPress={() => setSelectedSpaceId(NEW_SPACE_SENTINEL_ID)}
-                activeOpacity={0.8}
-              >
-                <Ionicons
-                  name={
-                    selectedSpaceId === NEW_SPACE_SENTINEL_ID
-                      ? 'radio-button-on'
-                      : 'radio-button-off'
-                  }
-                  size={22}
-                  color={selectedSpaceId === NEW_SPACE_SENTINEL_ID ? '#6C5CE7' : '#BDC3C7'}
-                />
-                <View style={styles.newSpaceTextWrap}>
-                  <Text
-                    style={[
-                      styles.newSpaceTitle,
-                      selectedSpaceId === NEW_SPACE_SENTINEL_ID && styles.newSpaceTitleSelected,
-                    ]}
-                    numberOfLines={1}
-                  >
-                    Create a new space
-                  </Text>
-                  <Text style={styles.newSpaceSubtitle} numberOfLines={1}>
-                    Start with a brand new client space
-                  </Text>
-                </View>
-              </TouchableOpacity>
-              <View style={styles.newSpaceInputReserve}>
-                {selectedSpaceId === NEW_SPACE_SENTINEL_ID ? (
-                  <TextInput
-                    style={styles.newSpaceInput}
-                    placeholder="Enter new space name"
-                    placeholderTextColor="#95A5A6"
-                    value={newSpaceName}
-                    onChangeText={setNewSpaceName}
-                  />
-                ) : null}
-              </View>
-            </>
-          )}
-        </View>
-        {isMobileVariant ? null : isWeb ? (
-          <View style={styles.linkLeftBottomWeb}>
-            {bottomBlock}
-          </View>
-        ) : (
-          <>
-            <TouchableOpacity
-              style={[
-                styles.newSpaceOption,
-                selectedSpaceId === NEW_SPACE_SENTINEL_ID && styles.newSpaceOptionSelected,
-              ]}
-              onPress={() => setSelectedSpaceId(NEW_SPACE_SENTINEL_ID)}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name={
-                  selectedSpaceId === NEW_SPACE_SENTINEL_ID
-                    ? 'radio-button-on'
-                    : 'radio-button-off'
-                }
-                size={22}
-                color={selectedSpaceId === NEW_SPACE_SENTINEL_ID ? '#6C5CE7' : '#BDC3C7'}
-              />
-              <View style={styles.newSpaceTextWrap}>
-                <Text
-                  style={[
-                    styles.newSpaceTitle,
-                    selectedSpaceId === NEW_SPACE_SENTINEL_ID && styles.newSpaceTitleSelected,
-                  ]}
-                  numberOfLines={1}
-                >
-                  Create a new space
-                </Text>
-                <Text style={styles.newSpaceSubtitle} numberOfLines={1}>
-                  Start with a brand new client space
-                </Text>
-              </View>
-            </TouchableOpacity>
-            <View style={styles.newSpaceInputReserve}>
-              {selectedSpaceId === NEW_SPACE_SENTINEL_ID ? (
-                <TextInput
-                  style={styles.newSpaceInput}
-                  placeholder="Enter new space name"
-                  placeholderTextColor="#95A5A6"
-                  value={newSpaceName}
-                  onChangeText={setNewSpaceName}
-                />
-              ) : null}
-            </View>
-          </>
-        )}
-      </View>
-    );
-  };
-
   const mainCard = (
-    <View style={[styles.card, isWeb && styles.cardWeb]}>
-      <View style={styles.cardHeader}>
+    <View style={styles.card}>
+      <TouchableOpacity style={styles.cardHeaderTouchable} onPress={openSkuPreview} disabled={!skuId} activeOpacity={skuId ? 0.7 : 1}>
         {cardHeaderContent}
-      </View>
-
-      <View style={[styles.cardBody, isWeb && !isNarrowWeb && styles.cardBodyWeb]}>
-        <View style={[styles.linkRow, isWeb && styles.linkRowWeb]}>
-          {renderSpaceForm()}
-
-          {/* Mobile: SKU preview only via header tap → /auth/setup-sku-preview */}
-        </View>
+      </TouchableOpacity>
+      <View style={styles.cardBody}>
+        <TouchableOpacity style={styles.primaryButton} onPress={handleConfirm} activeOpacity={0.8}>
+          <Text style={styles.primaryButtonText}>Continue</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -897,107 +509,14 @@ export default function ClientSetupScreen() {
   const consentModalNode = (
     <EngagementConsentModal
       visible={consentVisible}
-      loading={status === 'submitting'}
-      onClose={() => {
-        if (status !== 'submitting') setConsentVisible(false);
-      }}
+      loading={false}
+      onClose={() => setConsentVisible(false)}
       onConfirm={() => {
         setConsentVisible(false);
         void performConfirmAction();
       }}
     />
   );
-
-  if (!isWeb) {
-    return (
-      <KeyboardAvoidingView
-        style={styles.mobileContainer}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <StatusBar style="dark" />
-        <View style={styles.mobileContent}>
-          <View style={styles.mobileContentInner}>
-            <View style={styles.mobileHeader}>
-              <TouchableOpacity
-                style={styles.mobileBackButton}
-                onPress={handleMobileBack}
-              >
-                <Ionicons name="arrow-back" size={24} color="#2D3436" />
-              </TouchableOpacity>
-              <View style={styles.mobileIconContainer}>
-                <View style={styles.mobileCircle}>
-                  <Ionicons name="link" size={52} color="#6C5CE7" />
-                </View>
-              </View>
-              <Text style={styles.pageTitle}>Link your space with</Text>
-              <TouchableOpacity
-                style={styles.firmNameBlock}
-                activeOpacity={0.8}
-                onPress={openSkuPreview}
-                disabled={!skuId}
-              >
-                <Text style={styles.firmNameText}>{firmName}</Text>
-              </TouchableOpacity>
-              <Text style={styles.pageSubtitle}>
-                Select a space to link and start tax filing:
-              </Text>
-              {skuName ? (
-                <View style={styles.skuNameBlock}>
-                  <Text
-                    style={styles.skuNameText}
-                    numberOfLines={2}
-                  >
-                    {skuName}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-
-            <View style={styles.mobileForm}>
-              {renderSpaceForm('mobile')}
-            </View>
-          </View>
-
-          <View style={styles.mobileActionsBar}>
-            <View style={styles.mobileActions}>
-              <TouchableOpacity
-                style={styles.mobileSecondaryButton}
-                onPress={() => router.replace(cancelOrBackTarget)}
-                disabled={status === 'submitting'}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.mobileSecondaryButtonText}>{claimMode ? 'Deal with later' : 'Cancel'}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.mobilePrimaryButton,
-                  ((!selectedSpaceId ||
-                    (selectedSpaceId === NEW_SPACE_SENTINEL_ID && !newSpaceName.trim()) ||
-                    status === 'submitting') &&
-                    styles.buttonDisabled),
-                ]}
-                onPress={handleConfirm}
-                disabled={
-                  !selectedSpaceId ||
-                  (selectedSpaceId === NEW_SPACE_SENTINEL_ID && !newSpaceName.trim()) ||
-                  status === 'submitting'
-                }
-                activeOpacity={0.8}
-              >
-                {status === 'submitting' ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Text style={styles.mobilePrimaryButtonText}>Confirm</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-        {consentModalNode}
-      </KeyboardAvoidingView>
-    );
-  }
 
   return (
     <View style={styles.container}>

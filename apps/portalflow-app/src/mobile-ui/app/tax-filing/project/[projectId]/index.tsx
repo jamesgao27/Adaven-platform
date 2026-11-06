@@ -54,6 +54,9 @@ export default function ProjectTodosScreen() {
   const [error, setError] = useState<string | null>(null);
   /** 由 project 解析出的 orderId，用于 API（getProjectTodosTree 等） */
   const [orderId, setOrderId] = useState<string | null>(null);
+  useEffect(() => {
+    if (orderId) router.replace(`/portal/${orderId}`);
+  }, [orderId, router]);
   const [header, setHeader] = useState<{ projectName: string; firmName: string; dueAt: string | null; createdAt: string | null; status: string } | null>(null);
   /** 当前订单的 client space_id，用于税表上传路径 tax-filing/{clientSpaceId}/... */
   const [clientSpaceId, setClientSpaceId] = useState<string>('');

@@ -146,7 +146,7 @@ function LayoutContent() {
   const pathnameForType =
     pathname ??
     (Platform.OS === 'web' && typeof window !== 'undefined' ? (window as any).location?.pathname ?? null : null);
-  const showSidebar = isDesktopWeb && shouldShowWebSidebar(pathname ?? '/');
+  const showSidebar = isDesktopWeb && shouldShowWebSidebar(pathname ?? '/') && !pathname?.startsWith('/portal');
   const chatPanelCtx = useChatPanel();
   const chatOpen = chatPanelCtx?.open ?? false;
   const setChatOpen = chatPanelCtx?.setOpen;
@@ -176,7 +176,7 @@ function LayoutContent() {
   useEffect(() => {
     if (!pathname) return;
     if (isReceiptap) {
-      if (pathname.startsWith('/firm') || pathname.startsWith('/tax-filing')) {
+      if (pathname.startsWith('/firm') || pathname.startsWith('/tax-filing') || pathname.startsWith('/portal')) {
         router.replace('/');
       }
       return;
@@ -332,6 +332,14 @@ textarea:focus-within {
           options={{
             headerShown: false,
           }}
+        />
+        <Stack.Screen
+          name="portal/join"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="portal/[orderId]"
+          options={{ headerShown: false }}
         />
         <Stack.Screen 
           name="firm/clients" 

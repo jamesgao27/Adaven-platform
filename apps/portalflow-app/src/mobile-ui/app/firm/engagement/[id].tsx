@@ -17,10 +17,11 @@ import {
   Image,
   Platform,
   Alert,
+  TextInput,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { getCurrentSpace } from '@/lib/auth';
+import { getCurrentSpace, getCurrentUser } from '@/lib/auth';
 import {
   getOrderById,
   getProjectDetail,
@@ -50,6 +51,7 @@ import EngagementConsentModal from '@/components/EngagementConsentModal';
 import { showConfirmDestructiveDialog } from '@/lib/confirmDialog';
 import { deriveTaxSeasonYear } from '@/lib/tax-season-colors';
 import { useEngagementOrderProjectRealtime } from '../../../lib/engagement-realtime';
+import { loadPortalMessages, sendPortalMessage, type PortalMessage } from '@/lib/portal-data';
 
 // ── 订单状态：与 firm.orders.status（4 态）及类型 FirmOrderStatus 一致；深底色 + 白字色 ──
 const ORDER_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -104,6 +106,9 @@ export default function FirmEngagementDetailScreen() {
   const [showTinaFab, setShowTinaFab]   = useState(false);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [secondaryLoading, setSecondaryLoading] = useState(false);
+  const [showThread, setShowThread] = useState(false);
+  const [thread, setThread] = useState<PortalMessage[]>([]);
+  const [threadDraft, setThreadDraft] = useState('');
   const loadSeqRef = useRef(0);
 
   const loadData = useCallback(async () => {
@@ -129,6 +134,10 @@ export default function FirmEngagementDetailScreen() {
       if (isStale()) return;
       const role: 'client' | 'firm' = space?.kind === 'provider' ? 'firm' : 'client';
       setViewerRole(role);
+      if (role === 'client') {
+        router.replace(`/portal/${orderId}`);
+        return;
+      }
 
       if (!ord) {
         setError('Engagement not found');
@@ -144,9 +153,7 @@ export default function FirmEngagementDetailScreen() {
       void (async () => {
         try {
           const [clientHdr] = await Promise.all([
-            role === 'client'
-              ? getOrderHeaderForClient(orderId, { preloadedOrder: ord })
-              : Promise.resolve(null),
+            Promise.resolve(null),
           ]);
           if (isStale()) return;
           setClientHeaderForDetail(clientHdr);
@@ -459,6 +466,44 @@ export default function FirmEngagementDetailScreen() {
 
   return (
     <View style={s.root}>
+      <TouchableOpacity
+        style={s.commButton}
+        onPress={async () => {
+          setShowThread(true);
+          const user = await getCurrentUser();
+          if (!user || !orderId) return;
+          setThread(await loadPortalMessages(orderId, user.id));
+        }}
+      >
+        <Text style={s.commButtonText}>Communication</Text>
+      </TouchableOpacity>
+      {showThread ? (
+        <View style={s.thread}>
+          {thread.map((message) => (
+            <Text key={message.id} style={s.threadLine}>
+              {message.kind === 'urge' ? 'Urge' : message.kind === 'reply' ? 'Reply' : 'Message'}: {message.body}
+            </Text>
+          ))}
+          <TextInput
+            style={s.threadInput}
+            value={threadDraft}
+            onChangeText={setThreadDraft}
+            placeholder="Reply to the client"
+            placeholderTextColor="#95A5A6"
+          />
+          <TouchableOpacity
+            onPress={async () => {
+              const user = await getCurrentUser();
+              if (!user || !orderId) return;
+              await sendPortalMessage({ orderId, userId: user.id, kind: 'reply', body: threadDraft });
+              setThreadDraft('');
+              setThread(await loadPortalMessages(orderId, user.id));
+            }}
+          >
+            <Text style={s.commButtonText}>Send reply</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
       <ProjectDetailView
         viewerRole={viewerRole}
         header={detailHeader}
@@ -558,6 +603,11 @@ export default function FirmEngagementDetailScreen() {
 
 const s = StyleSheet.create({
   root:      { flex: 1 },
+  commButton: { alignSelf: 'flex-end', margin: 12, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: '#6C5CE7' },
+  commButtonText: { color: '#6C5CE7', fontWeight: '700' },
+  thread: { marginHorizontal: 12, marginBottom: 8, backgroundColor: '#fff', borderRadius: 12, padding: 12 },
+  threadLine: { color: '#2D3436', marginBottom: 4 },
+  threadInput: { borderWidth: 1, borderColor: '#E6E8F0', borderRadius: 8, padding: 8, marginVertical: 8 },
   centered:   { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   errorText: { fontSize: 15, color: '#636E72', marginBottom: 16 },
   backBtn:   { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 16 },
