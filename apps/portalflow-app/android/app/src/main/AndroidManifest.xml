@@ -29,12 +29,14 @@
         <action android:name="android.intent.action.VIEW"/>
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:scheme="receiptap"/>
         <data android:scheme="vouchap"/>
         <data android:scheme="exp+vouchap"/>
       </intent-filter>
       <intent-filter android:autoVerify="true" data-generated="true">
         <action android:name="android.intent.action.VIEW"/>
         <data android:scheme="https" android:host="vouchap.com" android:pathPrefix="/"/>
+        <data android:scheme="receiptap"/>
         <data android:scheme="vouchap"/>
         <category android:name="android.intent.category.BROWSABLE"/>
         <category android:name="android.intent.category.DEFAULT"/>

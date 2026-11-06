@@ -18,7 +18,7 @@ import { getPortalflowSidebarNavItems } from './portalflow-sidebar-nav';
 import { getPortalflowManagementMenuItems } from './portalflow-management-menu';
 import { isReceiptap } from './feature-flags';
 
-const nativeScheme = isReceiptap ? 'vouchap://' : 'portalflow://';
+const nativeScheme = isReceiptap ? 'receiptap://' : 'portalflow://';
 const publicOrigin = isReceiptap ? 'https://vouchap.com' : 'https://portalflow.app';
 
 function readAuthProvidersFromExtra(): Partial<Record<AuthProviderId, AuthProviderConfig>> {

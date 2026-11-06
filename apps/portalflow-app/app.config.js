@@ -30,7 +30,7 @@ const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "";
 const isReceiptap = process.env.APP_VARIANT === "receiptap";
 const appName = isReceiptap ? "Receiptap" : "Portalflow";
-const scheme = isReceiptap ? "vouchap" : "portalflow";
+const scheme = isReceiptap ? "receiptap" : "portalflow";
 const bundleId = isReceiptap ? "com.vouchap.app" : "com.portalflow.app";
 const associatedHost = isReceiptap ? "vouchap.com" : "portalflow.app";
 const cameraPermission = `${appName} requires Camera and Photo Library access to scan and upload your receipts for digital tracking.`;

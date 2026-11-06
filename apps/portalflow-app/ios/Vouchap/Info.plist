@@ -26,6 +26,7 @@
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
+          <string>receiptap</string>
           <string>vouchap</string>
           <string>com.vouchap.app</string>
         </array>
