@@ -27,7 +27,6 @@ import {
   type ConsumerSpaceChoice,
 } from '@/lib/portal-join';
 import {
-  deletePortalFile,
   loadPortalChecklist,
   loadPortalFiles,
   sendPortalMessage,
@@ -63,14 +62,17 @@ export default function PortalJoinScreen() {
   const [clientSpaceId, setClientSpaceId] = useState('');
   const [userId, setUserId] = useState('');
   const [sku, setSku] = useState<FirmSku | null>(null);
+  const [firmName, setFirmName] = useState('Your firm');
   const [matchedTitles, setMatchedTitles] = useState<string[]>([]);
   const [files, setFiles] = useState<PortalFile[]>([]);
+  const [pending, setPending] = useState<{ uri: string; name: string; mimeType?: string }[]>([]);
   const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
     if (!token) return;
     getFirmClientInviteInfo(token).then(async ({ info }) => {
       if (!info?.skuId) return;
+      if (info.firmName) setFirmName(info.firmName);
       const header = await resolveSkuForPreview(info.skuId, { inviteToken: token });
       if (!header) return;
       setSku({
@@ -111,6 +113,10 @@ export default function PortalJoinScreen() {
     setUserId(user.id);
     setOrderId(nextOrderId);
     setChoices(null);
+    const order = await getOrderById(nextOrderId);
+    if (order?.clientSpaceId && pending.length) {
+      await flushPending(nextOrderId, order.clientSpaceId, user.id, pending);
+    }
     await refreshOrder(nextOrderId, user.id);
   };
 
@@ -152,7 +158,7 @@ export default function PortalJoinScreen() {
 
   const addFile = async (file: { uri: string; name: string; mimeType?: string }) => {
     if (!orderId || !clientSpaceId || !userId) {
-      setError('Confirm your email before adding files.');
+      setPending((list) => [...list, file]);
       return;
     }
     setBusy(true);
@@ -172,6 +178,20 @@ export default function PortalJoinScreen() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const flushPending = async (nextOrderId: string, nextSpaceId: string, nextUserId: string, queued: { uri: string; name: string; mimeType?: string }[]) => {
+    for (const file of queued) {
+      await uploadPortalFile({
+        orderId: nextOrderId,
+        clientSpaceId: nextSpaceId,
+        userId: nextUserId,
+        fileName: file.name || 'file',
+        bytes: await readPickedFile(file.uri),
+        mimeType: file.mimeType || 'application/octet-stream',
+      });
+    }
+    setPending([]);
   };
 
   const onPick = () => fileRef.current?.click?.();
@@ -197,77 +217,42 @@ export default function PortalJoinScreen() {
 
   return (
     <View style={styles.page}>
-      <View style={styles.row}>
-        {mode === 'new' && !orderId ? (
-          <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Name" placeholderTextColor="#95A5A6" />
-        ) : null}
-        <TextInput style={styles.input} autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} placeholder="Email" placeholderTextColor="#95A5A6" editable={!orderId} />
-        {codeSent && !orderId ? (
-          <TextInput style={styles.code} value={code} onChangeText={setCode} keyboardType="number-pad" placeholder="Code" placeholderTextColor="#95A5A6" />
-        ) : null}
-        {!orderId ? (
-          <>
-            <TouchableOpacity style={styles.check} onPress={() => setAgreed((value) => !value)}>
-              <Ionicons name={agreed ? 'checkbox' : 'square-outline'} size={20} color="#6C5CE7" />
+      <View style={styles.card}>
+        <Text style={styles.title}>{firmName} sent you this request</Text>
+        <Text style={styles.subtitle}>{sku?.name || 'Documents'}</Text>
+        <View style={styles.split}>
+          <View style={styles.left}>
+            {sku ? (
+              <SkuPreview
+                sku={sku}
+                clientPreviewAuth={{ inviteToken: token || undefined, firmClientId: firmClientId || undefined, orderId: orderId || undefined }}
+                satisfiedTitles={matchedTitles}
+                maxHeight={420}
+              />
+            ) : (
+              <View style={styles.previewWait}>
+                <ActivityIndicator color="#6C5CE7" />
+                <Text style={styles.muted}>Loading the service template…</Text>
+              </View>
+            )}
+          </View>
+          <View style={styles.right}>
+            {files.map((file) => (
+              <View key={file.id} style={styles.fileRow}>
+                <Ionicons name="document-outline" size={18} color="#636E72" />
+                <Text style={styles.fileName} numberOfLines={1} onPress={() => Linking.openURL(file.url)}>{file.name}</Text>
+              </View>
+            ))}
+            {pending.map((file, index) => (
+              <View key={`pending-${index}`} style={styles.fileRow}>
+                <Ionicons name="document-outline" size={18} color="#636E72" />
+                <Text style={styles.fileName} numberOfLines={1}>{file.name}</Text>
+              </View>
+            ))}
+            <TouchableOpacity style={styles.addRow} onPress={onPick} disabled={busy}>
+              <Ionicons name="add-circle-outline" size={18} color="#2D3436" />
+              <Text style={styles.addText}>{files.length + pending.length ? 'Add more files' : 'Add files'}</Text>
             </TouchableOpacity>
-            <Text style={styles.agree}>
-              I agree to the <Text style={styles.link} onPress={() => setTermsOpen(true)}>service terms</Text>
-            </Text>
-            <TouchableOpacity style={[styles.button, (!agreed || busy) && styles.off]} onPress={codeSent ? onVerify : onSend} disabled={busy || !agreed}>
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{codeSent ? (mode === 'existing' ? 'Sign in' : 'Verify') : 'Send code'}</Text>}
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => {
-                setMode(mode === 'new' ? 'existing' : 'new');
-                setCodeSent(false);
-                setCode('');
-              }}
-            >
-              <Text style={styles.link}>{mode === 'new' ? 'Already have an account? Sign in' : 'New here? Enter your name'}</Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <Text style={styles.ready}>Signed in</Text>
-        )}
-      </View>
-      {choices ? (
-        <View style={styles.choices}>
-          {choices.map((choice) => (
-            <TouchableOpacity key={choice.id} style={styles.choice} onPress={() => finish(choice.id)} disabled={busy}>
-              <Text>{choice.name}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      ) : null}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <View style={styles.columns}>
-        <View style={styles.left}>
-          <SkuPreview
-            sku={sku}
-            clientPreviewAuth={{ inviteToken: token || undefined, firmClientId: firmClientId || undefined, orderId: orderId || undefined }}
-            satisfiedTitles={matchedTitles}
-            maxHeight={640}
-          />
-        </View>
-        <View style={styles.right}>
-          <View
-            style={styles.drop}
-            {...(Platform.OS === 'web'
-              ? ({
-                  onDragOver: (event: { preventDefault: () => void }) => event.preventDefault(),
-                  onDrop: (event: { preventDefault: () => void; dataTransfer?: { files?: FileList } }) => {
-                    event.preventDefault();
-                    const list = event.dataTransfer?.files;
-                    if (!list?.length) return;
-                    const file = list[0];
-                    void addFile({ uri: URL.createObjectURL(file), name: file.name, mimeType: file.type });
-                  },
-                } as object)
-              : {})}
-          >
-            <Ionicons name="cloud-upload-outline" size={28} color="#6C5CE7" />
-            <Text style={styles.dropText}>Drop files here, or click to add</Text>
-            <TouchableOpacity onPress={onPick}><Text style={styles.link}>Add files</Text></TouchableOpacity>
             {Platform.OS === 'web'
               ? createElement('input', {
                   type: 'file',
@@ -286,23 +271,63 @@ export default function PortalJoinScreen() {
                 })
               : null}
           </View>
-          <View style={styles.fileGrid}>
-            {files.map((file) => (
-              <TouchableOpacity key={file.id} style={styles.fileCard} onPress={() => Linking.openURL(file.url)}>
-                <Ionicons name="document-outline" size={28} color="#6C5CE7" />
-                <Text style={styles.fileName} numberOfLines={2}>{file.name}</Text>
-                {file.owned ? (
-                  <TouchableOpacity onPress={() => { void deletePortalFile(file.id).then(() => orderId && userId && refreshOrder(orderId, userId)); }}>
-                    <Ionicons name="close-circle" size={16} color="#D63031" />
-                  </TouchableOpacity>
-                ) : null}
+        </View>
+        {choices ? (
+          <View style={styles.choices}>
+            {choices.map((choice) => (
+              <TouchableOpacity key={choice.id} style={styles.choice} onPress={() => finish(choice.id)} disabled={busy}>
+                <Text>{choice.name}</Text>
               </TouchableOpacity>
             ))}
           </View>
-          <TouchableOpacity style={[styles.submit, (!orderId || !files.length || busy) && styles.off]} onPress={onSubmitToFirm} disabled={!orderId || !files.length || busy}>
-            <Text style={styles.buttonText}>{submitted ? 'Submitted to firm' : 'Submit to firm'}</Text>
-          </TouchableOpacity>
+        ) : null}
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        <View style={styles.form}>
+          {mode === 'new' && !orderId ? (
+            <View style={styles.field}>
+              <Text style={styles.label}>Your name</Text>
+              <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Add your name" placeholderTextColor="#95A5A6" />
+            </View>
+          ) : null}
+          <View style={styles.field}>
+            <Text style={styles.label}>Your email address</Text>
+            <TextInput style={styles.input} autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} placeholder="you@example.com" placeholderTextColor="#95A5A6" editable={!orderId} />
+          </View>
+          {codeSent && !orderId ? (
+            <View style={styles.field}>
+              <Text style={styles.label}>Code</Text>
+              <TextInput style={styles.input} value={code} onChangeText={setCode} keyboardType="number-pad" placeholder="6-digit code" placeholderTextColor="#95A5A6" />
+            </View>
+          ) : null}
         </View>
+        <View style={styles.actions}>
+          {!orderId ? (
+            <TouchableOpacity onPress={() => { setMode(mode === 'new' ? 'existing' : 'new'); setCodeSent(false); setCode(''); }}>
+              <Text style={styles.link}>{mode === 'new' ? 'Already have an account? Sign in' : 'New here? Enter your name'}</Text>
+            </TouchableOpacity>
+          ) : <View />}
+          <View style={styles.actionRight}>
+            {!orderId ? (
+              <>
+                <TouchableOpacity style={styles.check} onPress={() => setAgreed((value) => !value)}>
+                  <Ionicons name={agreed ? 'checkbox' : 'square-outline'} size={18} color="#6C5CE7" />
+                  <Text style={styles.agree}> I agree to the <Text style={styles.link} onPress={() => setTermsOpen(true)}>service terms</Text></Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.uploadBtn, (!agreed || busy) && styles.off]} onPress={codeSent ? onVerify : onSend} disabled={busy || !agreed}>
+                  {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.uploadText}>{codeSent ? (mode === 'existing' ? 'Sign in' : 'Verify') : 'Send code'}</Text>}
+                </TouchableOpacity>
+              </>
+            ) : (
+              <TouchableOpacity style={[styles.uploadBtn, (!(files.length + pending.length) || busy) && styles.off]} onPress={onSubmitToFirm} disabled={!(files.length + pending.length) || busy}>
+                <Text style={styles.uploadText}>{submitted ? 'Uploaded' : 'Upload'}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+        <Text style={styles.note}>
+          Your files will be sent securely to {firmName}. More about the{' '}
+          <Text style={styles.link} onPress={() => setTermsOpen(true)}>service terms</Text>.
+        </Text>
       </View>
       <Modal visible={termsOpen} transparent animationType="fade" onRequestClose={() => setTermsOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setTermsOpen(false)}>
@@ -322,31 +347,37 @@ export default function PortalJoinScreen() {
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: '#F7F8FC', padding: 16 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', backgroundColor: '#fff', borderRadius: 12, padding: 12, marginBottom: 12 },
-  input: { flexGrow: 1, minWidth: 160, borderWidth: 1, borderColor: '#E6E8F0', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 },
-  code: { width: 96, borderWidth: 1, borderColor: '#E6E8F0', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 },
-  check: { padding: 2 },
-  agree: { color: '#2D3436' },
-  link: { color: '#6C5CE7', fontWeight: '600' },
-  button: { backgroundColor: '#6C5CE7', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
-  buttonText: { color: '#fff', fontWeight: '700' },
-  off: { opacity: 0.45 },
-  ready: { color: '#00B894', fontWeight: '600' },
-  error: { color: '#D63031', marginBottom: 8 },
-  choices: { flexDirection: 'row', gap: 8, marginBottom: 8, flexWrap: 'wrap' },
-  choice: { backgroundColor: '#fff', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#E6E8F0' },
-  columns: { flex: 1, flexDirection: 'row', gap: 12 },
-  left: { flex: 1.1 },
-  right: { flex: 0.9, backgroundColor: '#fff', borderRadius: 16, padding: 12 },
-  drop: { borderWidth: 1, borderStyle: 'dashed', borderColor: '#C5B8F5', borderRadius: 12, alignItems: 'center', justifyContent: 'center', padding: 16, marginBottom: 12, backgroundColor: '#F8F6FF' },
-  dropText: { color: '#636E72', marginTop: 6, marginBottom: 4 },
-  fileGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  fileCard: { width: 108, minHeight: 96, borderRadius: 12, borderWidth: 1, borderColor: '#E6E8F0', alignItems: 'center', justifyContent: 'center', padding: 8 },
-  fileName: { fontSize: 12, color: '#2D3436', textAlign: 'center', marginTop: 4 },
-  submit: { marginTop: 12, backgroundColor: '#0F172A', borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+  page: { flex: 1, backgroundColor: '#F4F4F4', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  card: { width: '100%', maxWidth: 860, backgroundColor: '#fff', borderRadius: 4, padding: 28, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 16, shadowOffset: { width: 0, height: 4 } },
+  title: { textAlign: 'center', fontSize: 22, fontWeight: '700', color: '#1B1B1B' },
+  subtitle: { textAlign: 'center', color: '#637381', marginTop: 6, marginBottom: 20 },
+  split: { flexDirection: 'row', gap: 16, minHeight: 280, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#ECEFF1', paddingVertical: 16 },
+  left: { flex: 1.15 },
+  right: { flex: 0.85, borderLeftWidth: 1, borderLeftColor: '#ECEFF1', paddingLeft: 16 },
+  previewWait: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
+  muted: { color: '#637381' },
+  fileRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F0F2F4' },
+  fileName: { flex: 1, color: '#1B1B1B' },
+  addRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12 },
+  addText: { color: '#1B1B1B', fontWeight: '600' },
+  form: { flexDirection: 'row', gap: 16, marginTop: 20 },
+  field: { flex: 1 },
+  label: { fontSize: 13, fontWeight: '600', color: '#1B1B1B', marginBottom: 6 },
+  input: { borderWidth: 1, borderColor: '#D5DADF', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
+  actions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 },
+  actionRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  check: { flexDirection: 'row', alignItems: 'center' },
+  agree: { color: '#1B1B1B' },
+  link: { color: '#1B1B1B', textDecorationLine: 'underline' },
+  uploadBtn: { backgroundColor: '#1B1B1B', borderRadius: 8, paddingHorizontal: 18, paddingVertical: 10 },
+  uploadText: { color: '#fff', fontWeight: '700' },
+  off: { opacity: 0.4 },
+  error: { color: '#D63031', marginTop: 8 },
+  choices: { flexDirection: 'row', gap: 8, marginTop: 12, flexWrap: 'wrap' },
+  choice: { borderWidth: 1, borderColor: '#D5DADF', borderRadius: 8, padding: 8 },
+  note: { marginTop: 18, textAlign: 'center', color: '#637381', fontSize: 12, lineHeight: 18 },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: 24 },
-  modal: { backgroundColor: '#fff', borderRadius: 16, padding: 16, maxHeight: '85%' },
+  modal: { backgroundColor: '#fff', borderRadius: 12, padding: 16, maxHeight: '85%' },
   modalHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  modalTitle: { fontSize: 16, fontWeight: '700', color: '#2D3436' },
+  modalTitle: { fontSize: 16, fontWeight: '700' },
 });
