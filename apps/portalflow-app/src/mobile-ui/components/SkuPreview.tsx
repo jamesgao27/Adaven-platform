@@ -21,6 +21,8 @@ type Props = {
   maxHeight?: number;
   /** Client invite / link flow: load sku_items via RPC (RLS blocks direct reads for non–firm members). */
   clientPreviewAuth?: { firmClientId?: string; inviteToken?: string; orderId?: string };
+  /** Task titles already matched from uploaded files. */
+  satisfiedTitles?: string[];
 };
 
 type SkuItemRow = {
@@ -51,7 +53,7 @@ function getTagColor(s: string): [string, string] {
   return TAG_PALETTE[Math.abs(h) % TAG_PALETTE.length]!;
 }
 
-export default function SkuPreview({ sku, variant = 'card', maxHeight, clientPreviewAuth }: Props) {
+export default function SkuPreview({ sku, variant = 'card', maxHeight, clientPreviewAuth, satisfiedTitles }: Props) {
   const [items, setItems] = useState<SkuItemRow[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [listLayoutHeight, setListLayoutHeight] = useState(0);
@@ -120,13 +122,14 @@ export default function SkuPreview({ sku, variant = 'card', maxHeight, clientPre
     return () => loop.stop();
   }, [showScrollHint, bounceAnim]);
 
+  const isWeb = Platform.OS === 'web';
   const hasImage = !!sku?.imageUrl;
   const description = sku?.description || '';
   const name = sku?.name ?? '—';
   const taxCountry = sku?.taxCountry || '';
   const taxScenario = sku?.taxScenario || '';
   const hasTags = !!taxCountry || !!taxScenario;
-  const isWeb = Platform.OS === 'web';
+  const satisfied = new Set((satisfiedTitles ?? []).map((title) => title.trim().toLowerCase()));
 
   if (!sku) {
     return (
@@ -251,6 +254,9 @@ export default function SkuPreview({ sku, variant = 'card', maxHeight, clientPre
                       <Text style={styles.todoTitle} numberOfLines={1}>
                         {row.title}
                       </Text>
+                      {satisfied.has(row.title.trim().toLowerCase()) ? (
+                        <Ionicons name="checkmark-circle" size={16} color="#00B894" />
+                      ) : null}
                     </>
                   ) : (
                     // phase / section：不显示责任方，让名称紧跟在编号后面

@@ -61,7 +61,8 @@ export async function listConsumerSpacesForPortal(): Promise<ConsumerSpaceChoice
 /** Create a consumer space named from the email, or use the only existing one. */
 export async function ensureConsumerSpace(
   email: string,
-  chosenSpaceId?: string | null
+  chosenSpaceId?: string | null,
+  displayName?: string | null,
 ): Promise<{ spaceId: string } | { choices: ConsumerSpaceChoice[] }> {
   const choices = await listConsumerSpacesForPortal();
   if (chosenSpaceId) {
@@ -76,7 +77,7 @@ export async function ensureConsumerSpace(
     return { spaceId: choices[0].id };
   }
   if (choices.length > 1) return { choices };
-  const local = email.trim().split('@')[0]?.replace(/[^\w.-]+/g, ' ').trim() || 'Client';
+  const local = (displayName || '').trim() || email.trim().split('@')[0]?.replace(/[^\w.-]+/g, ' ').trim() || 'Client';
   const { space, error } = await createSpace(local, undefined, { kind: 'consumer' });
   if (error || !space) throw error ?? new Error('Could not create a space.');
   return { spaceId: space.id };

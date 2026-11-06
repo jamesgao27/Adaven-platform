@@ -1,4 +1,4 @@
-import { createElement, useCallback, useEffect, useState } from 'react';
+import { createElement, useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  ScrollView,
   Modal,
   Pressable,
   Linking,
@@ -14,10 +13,11 @@ import {
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import * as DocumentPicker from 'expo-document-picker';
 import { getCurrentUser } from '@/lib/auth';
-import { getOrderById, fetchSkuItemsForClientPreview } from '@/lib/firm';
+import { getOrderById, resolveSkuForPreview } from '@/lib/firm';
 import { getFirmClientInviteInfo } from '@/lib/firm-clients';
+import SkuPreview from '@/components/SkuPreview';
+import type { FirmSku } from '@/types';
 import {
   ensureConsumerSpace,
   listConsumerSpacesForPortal,
@@ -30,12 +30,10 @@ import {
   deletePortalFile,
   loadPortalChecklist,
   loadPortalFiles,
-  loadPortalMessages,
   sendPortalMessage,
   uploadPortalFile,
   type PortalChecklistItem,
   type PortalFile,
-  type PortalMessage,
 } from '@/lib/portal-data';
 
 const TERMS_URL = 'https://www.vouchap.com/terms';
@@ -50,6 +48,9 @@ export default function PortalJoinScreen() {
   const params = useLocalSearchParams<{ token?: string; firmClientId?: string }>();
   const token = typeof params.token === 'string' ? params.token : '';
   const firmClientId = typeof params.firmClientId === 'string' ? params.firmClientId : '';
+  const fileRef = useRef<{ click?: () => void } | null>(null);
+  const [mode, setMode] = useState<'new' | 'existing'>('new');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [agreed, setAgreed] = useState(false);
@@ -61,28 +62,28 @@ export default function PortalJoinScreen() {
   const [orderId, setOrderId] = useState('');
   const [clientSpaceId, setClientSpaceId] = useState('');
   const [userId, setUserId] = useState('');
-  const [items, setItems] = useState<PortalChecklistItem[]>([]);
+  const [sku, setSku] = useState<FirmSku | null>(null);
+  const [matchedTitles, setMatchedTitles] = useState<string[]>([]);
   const [files, setFiles] = useState<PortalFile[]>([]);
-  const [messages, setMessages] = useState<PortalMessage[]>([]);
-  const [draft, setDraft] = useState('');
-  const [threadOpen, setThreadOpen] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
     if (!token) return;
     getFirmClientInviteInfo(token).then(async ({ info }) => {
       if (!info?.skuId) return;
-      const rows = await fetchSkuItemsForClientPreview(info.skuId, { inviteToken: token });
-      setItems(
-        rows
-          .filter((row) => row.item_kind === 'task' && row.initial_responsible_side === 'client')
-          .map((row) => ({
-            id: row.id,
-            title: row.title,
-            description: row.description,
-            satisfied: false,
-            gap: null,
-          }))
-      );
+      const header = await resolveSkuForPreview(info.skuId, { inviteToken: token });
+      if (!header) return;
+      setSku({
+        id: info.skuId,
+        firmSpaceId: info.firmSpaceId,
+        name: header.name,
+        description: header.description ?? undefined,
+        imageUrl: header.imageUrl,
+        taxCountry: header.taxCountry,
+        taxScenario: header.taxScenario,
+        isPublished: header.isPublished,
+        templateStatus: header.templateStatus,
+      });
     });
   }, [token]);
 
@@ -90,14 +91,12 @@ export default function PortalJoinScreen() {
     const order = await getOrderById(nextOrderId);
     if (!order?.clientSpaceId) throw new Error('This engagement is not ready yet.');
     setClientSpaceId(order.clientSpaceId);
-    const [nextItems, nextFiles, nextMessages] = await Promise.all([
+    const [checklist, nextFiles] = await Promise.all([
       loadPortalChecklist(nextOrderId),
       loadPortalFiles(nextOrderId, nextUserId),
-      loadPortalMessages(nextOrderId, nextUserId),
     ]);
-    setItems(nextItems);
+    setMatchedTitles(checklist.filter((item: PortalChecklistItem) => item.satisfied).map((item) => item.title));
     setFiles(nextFiles);
-    setMessages(nextMessages);
   }, []);
 
   const finish = async (spaceId: string) => {
@@ -117,6 +116,10 @@ export default function PortalJoinScreen() {
 
   const onSend = async () => {
     if (!agreed) return;
+    if (mode === 'new' && !name.trim()) {
+      setError('Enter your name.');
+      return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -134,7 +137,7 @@ export default function PortalJoinScreen() {
     setError('');
     try {
       await verifyPortalEmailCode(email, code);
-      const ensured = await ensureConsumerSpace(email);
+      const ensured = await ensureConsumerSpace(email, null, mode === 'new' ? name : null);
       if ('choices' in ensured) {
         setChoices(ensured.choices.length ? ensured.choices : await listConsumerSpacesForPortal());
         return;
@@ -147,11 +150,11 @@ export default function PortalJoinScreen() {
     }
   };
 
-  const onUpload = async () => {
-    if (!orderId || !clientSpaceId || !userId) return;
-    const picked = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, multiple: false });
-    if (picked.canceled || !picked.assets?.[0]) return;
-    const asset = picked.assets[0];
+  const addFile = async (file: { uri: string; name: string; mimeType?: string }) => {
+    if (!orderId || !clientSpaceId || !userId) {
+      setError('Confirm your email before adding files.');
+      return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -159,29 +162,34 @@ export default function PortalJoinScreen() {
         orderId,
         clientSpaceId,
         userId,
-        fileName: asset.name || 'file',
-        bytes: await readPickedFile(asset.uri),
-        mimeType: asset.mimeType || 'application/octet-stream',
+        fileName: file.name || 'file',
+        bytes: await readPickedFile(file.uri),
+        mimeType: file.mimeType || 'application/octet-stream',
       });
       await refreshOrder(orderId, userId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Upload failed.');
+      setError(e instanceof Error ? e.message : 'Could not add the file.');
     } finally {
       setBusy(false);
     }
   };
 
-  const onSendNote = async (kind: 'urge' | 'message') => {
-    if (!orderId || !userId) return;
+  const onPick = () => fileRef.current?.click?.();
+
+  const onSubmitToFirm = async () => {
+    if (!orderId || !userId || !files.length) return;
     setBusy(true);
     setError('');
     try {
-      await sendPortalMessage({ orderId, userId, kind, body: draft });
-      setDraft('');
-      setThreadOpen(true);
-      setMessages(await loadPortalMessages(orderId, userId));
+      await sendPortalMessage({
+        orderId,
+        userId,
+        kind: 'message',
+        body: `Submitted ${files.length} file${files.length === 1 ? '' : 's'} for review.`,
+      });
+      setSubmitted(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not send.');
+      setError(e instanceof Error ? e.message : 'Could not submit.');
     } finally {
       setBusy(false);
     }
@@ -189,105 +197,123 @@ export default function PortalJoinScreen() {
 
   return (
     <View style={styles.page}>
-      <View style={styles.verify}>
-        <Text style={styles.title}>Confirm your email</Text>
-        {choices ? (
-          choices.map((choice) => (
-            <TouchableOpacity key={choice.id} style={styles.choice} onPress={() => finish(choice.id)} disabled={busy}>
-              <Text style={styles.choiceText}>{choice.name}</Text>
-            </TouchableOpacity>
-          ))
-        ) : (
+      <View style={styles.row}>
+        {mode === 'new' && !orderId ? (
+          <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Name" placeholderTextColor="#95A5A6" />
+        ) : null}
+        <TextInput style={styles.input} autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} placeholder="Email" placeholderTextColor="#95A5A6" editable={!orderId} />
+        {codeSent && !orderId ? (
+          <TextInput style={styles.code} value={code} onChangeText={setCode} keyboardType="number-pad" placeholder="Code" placeholderTextColor="#95A5A6" />
+        ) : null}
+        {!orderId ? (
           <>
-            <View style={styles.agreeRow}>
-              <TouchableOpacity onPress={() => setAgreed((value) => !value)} accessibilityRole="checkbox" accessibilityState={{ checked: agreed }}>
-                <Ionicons name={agreed ? 'checkbox' : 'square-outline'} size={22} color="#6C5CE7" />
-              </TouchableOpacity>
-              <Text style={styles.agreeText}>
-                I agree to the{' '}
-                <Text style={styles.termsLink} onPress={() => setTermsOpen(true)}>service terms</Text>
-              </Text>
-            </View>
-            <TextInput style={styles.input} autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} placeholder="name@example.com" placeholderTextColor="#95A5A6" editable={!orderId} />
-            {codeSent && !orderId ? (
-              <TextInput style={styles.input} value={code} onChangeText={setCode} keyboardType="number-pad" placeholder="6-digit code" placeholderTextColor="#95A5A6" />
-            ) : null}
-            {!orderId ? (
-              <TouchableOpacity style={[styles.button, !agreed && !codeSent && styles.buttonOff]} onPress={codeSent ? onVerify : onSend} disabled={busy || (!codeSent && !agreed)}>
-                {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{codeSent ? 'Verify' : 'Send code'}</Text>}
-              </TouchableOpacity>
-            ) : (
-              <Text style={styles.ready}>Email confirmed. You can upload files in the folder.</Text>
-            )}
-          </>
-        )}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        {orderId ? (
-          <View style={styles.noteRow}>
-            <TouchableOpacity style={styles.ghost} onPress={() => onSendNote('urge')} disabled={busy}><Text style={styles.ghostText}>Urge</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.ghost} onPress={() => setThreadOpen((open) => !open)}><Text style={styles.ghostText}>Message</Text></TouchableOpacity>
-          </View>
-        ) : null}
-        {threadOpen ? (
-          <View>
-            {messages.map((message) => (
-              <Text key={message.id} style={styles.threadLine}>{message.kind === 'urge' ? 'Urge' : message.kind === 'reply' ? 'Reply' : 'Note'}: {message.body}</Text>
-            ))}
-            <TextInput style={styles.input} value={draft} onChangeText={setDraft} placeholder="Leave a note for your firm" placeholderTextColor="#95A5A6" />
-            <TouchableOpacity onPress={() => onSendNote('message')} disabled={busy}><Text style={styles.ghostText}>Send</Text></TouchableOpacity>
-          </View>
-        ) : null}
-      </View>
-      <View style={styles.columns}>
-        <View style={styles.column}>
-          <Text style={styles.heading}>What we need</Text>
-          <ScrollView>
-            {items.map((item) => (
-              <View key={item.id} style={styles.item}>
-                <Ionicons name={item.satisfied ? 'checkmark-circle' : 'ellipse-outline'} size={18} color={item.satisfied ? '#00B894' : '#B2BEC3'} />
-                <View style={styles.itemCopy}>
-                  <Text style={[styles.itemTitle, item.satisfied && styles.itemDone]}>{item.title}</Text>
-                  {!item.satisfied && item.gap ? <Text style={styles.gap}>{item.gap}</Text> : null}
-                </View>
-              </View>
-            ))}
-            {!items.length ? <Text style={styles.empty}>The document list appears here from the service you were invited to.</Text> : null}
-          </ScrollView>
-        </View>
-        <View style={styles.column}>
-          <View style={styles.folderHead}>
-            <Text style={styles.heading}>Files</Text>
-            <TouchableOpacity style={[styles.upload, !orderId && styles.buttonOff]} onPress={onUpload} disabled={busy || !orderId}>
-              <Text style={styles.buttonText}>Upload</Text>
+            <TouchableOpacity style={styles.check} onPress={() => setAgreed((value) => !value)}>
+              <Ionicons name={agreed ? 'checkbox' : 'square-outline'} size={20} color="#6C5CE7" />
             </TouchableOpacity>
+            <Text style={styles.agree}>
+              I agree to the <Text style={styles.link} onPress={() => setTermsOpen(true)}>service terms</Text>
+            </Text>
+            <TouchableOpacity style={[styles.button, (!agreed || busy) && styles.off]} onPress={codeSent ? onVerify : onSend} disabled={busy || !agreed}>
+              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{codeSent ? (mode === 'existing' ? 'Sign in' : 'Verify') : 'Send code'}</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                setMode(mode === 'new' ? 'existing' : 'new');
+                setCodeSent(false);
+                setCode('');
+              }}
+            >
+              <Text style={styles.link}>{mode === 'new' ? 'Already have an account? Sign in' : 'New here? Enter your name'}</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <Text style={styles.ready}>Signed in</Text>
+        )}
+      </View>
+      {choices ? (
+        <View style={styles.choices}>
+          {choices.map((choice) => (
+            <TouchableOpacity key={choice.id} style={styles.choice} onPress={() => finish(choice.id)} disabled={busy}>
+              <Text>{choice.name}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      ) : null}
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+      <View style={styles.columns}>
+        <View style={styles.left}>
+          <SkuPreview
+            sku={sku}
+            clientPreviewAuth={{ inviteToken: token || undefined, firmClientId: firmClientId || undefined, orderId: orderId || undefined }}
+            satisfiedTitles={matchedTitles}
+            maxHeight={640}
+          />
+        </View>
+        <View style={styles.right}>
+          <View
+            style={styles.drop}
+            {...(Platform.OS === 'web'
+              ? ({
+                  onDragOver: (event: { preventDefault: () => void }) => event.preventDefault(),
+                  onDrop: (event: { preventDefault: () => void; dataTransfer?: { files?: FileList } }) => {
+                    event.preventDefault();
+                    const list = event.dataTransfer?.files;
+                    if (!list?.length) return;
+                    const file = list[0];
+                    void addFile({ uri: URL.createObjectURL(file), name: file.name, mimeType: file.type });
+                  },
+                } as object)
+              : {})}
+          >
+            <Ionicons name="cloud-upload-outline" size={28} color="#6C5CE7" />
+            <Text style={styles.dropText}>Drop files here, or click to add</Text>
+            <TouchableOpacity onPress={onPick}><Text style={styles.link}>Add files</Text></TouchableOpacity>
+            {Platform.OS === 'web'
+              ? createElement('input', {
+                  type: 'file',
+                  multiple: true,
+                  ref: (node: { click?: () => void } | null) => {
+                    fileRef.current = node;
+                  },
+                  style: { display: 'none' },
+                  onChange: (event: { target?: { files?: FileList | null } }) => {
+                    const list = event.target?.files;
+                    if (!list) return;
+                    Array.from(list).forEach((file) => {
+                      void addFile({ uri: URL.createObjectURL(file), name: file.name, mimeType: file.type });
+                    });
+                  },
+                })
+              : null}
           </View>
-          <ScrollView>
+          <View style={styles.fileGrid}>
             {files.map((file) => (
-              <View key={file.id} style={styles.fileRow}>
-                <TouchableOpacity style={styles.fileName} onPress={() => Linking.openURL(file.url)}>
-                  <Text style={styles.fileText} numberOfLines={1}>{file.name}</Text>
-                </TouchableOpacity>
+              <TouchableOpacity key={file.id} style={styles.fileCard} onPress={() => Linking.openURL(file.url)}>
+                <Ionicons name="document-outline" size={28} color="#6C5CE7" />
+                <Text style={styles.fileName} numberOfLines={2}>{file.name}</Text>
                 {file.owned ? (
-                  <TouchableOpacity onPress={async () => { await deletePortalFile(file.id); if (orderId && userId) await refreshOrder(orderId, userId); }}>
-                    <Ionicons name="trash-outline" size={18} color="#D63031" />
+                  <TouchableOpacity onPress={() => { void deletePortalFile(file.id).then(() => orderId && userId && refreshOrder(orderId, userId)); }}>
+                    <Ionicons name="close-circle" size={16} color="#D63031" />
                   </TouchableOpacity>
                 ) : null}
-              </View>
+              </TouchableOpacity>
             ))}
-            {!orderId ? <Text style={styles.empty}>Confirm your email to add files to this folder.</Text> : null}
-          </ScrollView>
+          </View>
+          <TouchableOpacity style={[styles.submit, (!orderId || !files.length || busy) && styles.off]} onPress={onSubmitToFirm} disabled={!orderId || !files.length || busy}>
+            <Text style={styles.buttonText}>{submitted ? 'Submitted to firm' : 'Submit to firm'}</Text>
+          </TouchableOpacity>
         </View>
       </View>
       <Modal visible={termsOpen} transparent animationType="fade" onRequestClose={() => setTermsOpen(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setTermsOpen(false)}>
-          <Pressable style={styles.modalCard} onPress={(event) => event.stopPropagation()}>
+        <Pressable style={styles.backdrop} onPress={() => setTermsOpen(false)}>
+          <Pressable style={styles.modal} onPress={(event) => event.stopPropagation()}>
             <View style={styles.modalHead}>
-              <Text style={styles.heading}>Service terms</Text>
-              <TouchableOpacity onPress={() => setTermsOpen(false)}><Text style={styles.ghostText}>Close</Text></TouchableOpacity>
+              <Text style={styles.modalTitle}>Service terms</Text>
+              <TouchableOpacity onPress={() => setTermsOpen(false)}><Text style={styles.link}>Close</Text></TouchableOpacity>
             </View>
             {Platform.OS === 'web'
               ? createElement('iframe', { src: TERMS_URL, style: { width: '100%', height: 480, border: 'none' } })
-              : <TouchableOpacity onPress={() => Linking.openURL(TERMS_URL)}><Text style={styles.termsLink}>Open the terms page</Text></TouchableOpacity>}
+              : <TouchableOpacity onPress={() => Linking.openURL(TERMS_URL)}><Text style={styles.link}>Open the terms page</Text></TouchableOpacity>}
           </Pressable>
         </Pressable>
       </Modal>
@@ -297,38 +323,30 @@ export default function PortalJoinScreen() {
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#F7F8FC', padding: 16 },
-  verify: { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 12 },
-  title: { fontSize: 20, fontWeight: '700', color: '#2D3436', marginBottom: 10 },
-  agreeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  agreeText: { color: '#2D3436', flex: 1 },
-  termsLink: { color: '#6C5CE7', textDecorationLine: 'underline' },
-  input: { borderWidth: 1, borderColor: '#E6E8F0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 10 },
-  button: { backgroundColor: '#6C5CE7', borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
-  buttonOff: { opacity: 0.45 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', backgroundColor: '#fff', borderRadius: 12, padding: 12, marginBottom: 12 },
+  input: { flexGrow: 1, minWidth: 160, borderWidth: 1, borderColor: '#E6E8F0', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 },
+  code: { width: 96, borderWidth: 1, borderColor: '#E6E8F0', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 },
+  check: { padding: 2 },
+  agree: { color: '#2D3436' },
+  link: { color: '#6C5CE7', fontWeight: '600' },
+  button: { backgroundColor: '#6C5CE7', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
   buttonText: { color: '#fff', fontWeight: '700' },
-  ready: { color: '#00B894' },
-  error: { color: '#D63031', marginTop: 8 },
-  choice: { borderWidth: 1, borderColor: '#E6E8F0', borderRadius: 12, padding: 12, marginBottom: 8 },
-  choiceText: { fontWeight: '600', color: '#2D3436' },
-  noteRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  ghost: { borderWidth: 1, borderColor: '#6C5CE7', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
-  ghostText: { color: '#6C5CE7', fontWeight: '700' },
-  threadLine: { color: '#2D3436', marginTop: 4 },
+  off: { opacity: 0.45 },
+  ready: { color: '#00B894', fontWeight: '600' },
+  error: { color: '#D63031', marginBottom: 8 },
+  choices: { flexDirection: 'row', gap: 8, marginBottom: 8, flexWrap: 'wrap' },
+  choice: { backgroundColor: '#fff', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#E6E8F0' },
   columns: { flex: 1, flexDirection: 'row', gap: 12 },
-  column: { flex: 1, backgroundColor: '#fff', borderRadius: 16, padding: 14 },
-  heading: { fontSize: 16, fontWeight: '700', color: '#2D3436', marginBottom: 10 },
-  item: { flexDirection: 'row', gap: 8, marginBottom: 10 },
-  itemCopy: { flex: 1 },
-  itemTitle: { color: '#2D3436' },
-  itemDone: { color: '#00B894' },
-  gap: { color: '#636E72', fontSize: 12 },
-  folderHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  upload: { backgroundColor: '#6C5CE7', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
-  fileRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  fileName: { flex: 1 },
-  fileText: { color: '#2D3436' },
-  empty: { color: '#636E72' },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: 24 },
-  modalCard: { backgroundColor: '#fff', borderRadius: 16, padding: 16, maxHeight: '85%' },
-  modalHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  left: { flex: 1.1 },
+  right: { flex: 0.9, backgroundColor: '#fff', borderRadius: 16, padding: 12 },
+  drop: { borderWidth: 1, borderStyle: 'dashed', borderColor: '#C5B8F5', borderRadius: 12, alignItems: 'center', justifyContent: 'center', padding: 16, marginBottom: 12, backgroundColor: '#F8F6FF' },
+  dropText: { color: '#636E72', marginTop: 6, marginBottom: 4 },
+  fileGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  fileCard: { width: 108, minHeight: 96, borderRadius: 12, borderWidth: 1, borderColor: '#E6E8F0', alignItems: 'center', justifyContent: 'center', padding: 8 },
+  fileName: { fontSize: 12, color: '#2D3436', textAlign: 'center', marginTop: 4 },
+  submit: { marginTop: 12, backgroundColor: '#0F172A', borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: 24 },
+  modal: { backgroundColor: '#fff', borderRadius: 16, padding: 16, maxHeight: '85%' },
+  modalHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  modalTitle: { fontSize: 16, fontWeight: '700', color: '#2D3436' },
 });

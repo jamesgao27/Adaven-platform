@@ -146,7 +146,11 @@ function LayoutContent() {
   const pathnameForType =
     pathname ??
     (Platform.OS === 'web' && typeof window !== 'undefined' ? (window as any).location?.pathname ?? null : null);
-  const showSidebar = isDesktopWeb && shouldShowWebSidebar(pathname ?? '/') && !pathname?.startsWith('/portal');
+  const showSidebar =
+    isDesktopWeb &&
+    shouldShowWebSidebar(pathname ?? '/') &&
+    !pathname?.startsWith('/portal') &&
+    pathname !== '/client-join';
   const chatPanelCtx = useChatPanel();
   const chatOpen = chatPanelCtx?.open ?? false;
   const setChatOpen = chatPanelCtx?.setOpen;
