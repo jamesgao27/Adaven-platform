@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
-/** https://portalflow.pages.dev/client-join?token=... lands on the engagement setup. */
+/** https://portalflow.aim.link/client-join?token=... lands on the engagement setup. */
 export default function ClientJoinScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ token?: string }>();

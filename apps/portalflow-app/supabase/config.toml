@@ -12,6 +12,8 @@ site_url = "https://portalflow.pages.dev"
 additional_redirect_urls = [
   "https://portalflow.pages.dev/**",
   "https://portalflow.pages.dev/auth/confirm",
+  "https://portalflow.aim.link/**",
+  "https://portalflow.aim.link/auth/confirm",
   "exp://localhost:8081/**",
   "exp://localhost:8081/--/auth/confirm",
   "portalflow://**",

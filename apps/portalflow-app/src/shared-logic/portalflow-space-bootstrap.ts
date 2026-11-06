@@ -19,7 +19,7 @@ import { getPortalflowManagementMenuItems } from './portalflow-management-menu';
 import { isReceiptap } from './feature-flags';
 
 const nativeScheme = isReceiptap ? 'receiptap://' : 'portalflow://';
-const publicOrigin = isReceiptap ? 'https://vouchap.com' : 'https://portalflow.app';
+const publicOrigin = isReceiptap ? 'https://vouchap.com' : 'https://portalflow.aim.link';
 
 function readAuthProvidersFromExtra(): Partial<Record<AuthProviderId, AuthProviderConfig>> {
   const extra = (Constants.expoConfig?.extra ?? {}) as Record<string, unknown>;
