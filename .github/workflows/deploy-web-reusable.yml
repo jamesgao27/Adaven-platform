@@ -65,6 +65,10 @@ jobs:
           if [ -f public/_redirects ]; then cp -f public/_redirects dist/_redirects; fi
           test -f dist/index.html
 
+      - name: Ensure Pages project
+        working-directory: ${{ inputs.app_dir }}
+        run: npx wrangler pages project create "${{ inputs.project_name }}" --production-branch main || true
+
       - name: Deploy Direct Upload
         uses: cloudflare/wrangler-action@v3
         with:
