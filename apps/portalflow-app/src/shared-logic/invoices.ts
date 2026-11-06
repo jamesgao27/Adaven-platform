@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 import { Invoice, InvoiceItem } from '@/types';
 import { getCurrentUser } from './auth';
-import { findOrCreateEntity, updateEntity, getEntityMergeMap, getEntityById, resolveEntityId } from './entities';
+import { findOrCreateEntity, updateEntity, getEntityMergeMap, getEntityById, resolveEntityId, reconcileInvoicePayers } from './entities';
 import { getAccountMergeMap, getAccountById, getAccountOptionsForDuplicateCheck, resolveAccountId, normalizeAccountName } from './accounts';
 import { getEntityOptions, getEntityOptionsForDuplicateCheck } from './entity-list';
 import { normalizeNameForCompare } from './name-utils';
@@ -25,7 +25,7 @@ function mapEntityRow(e: any): Invoice['entity'] {
 }
 
 function rowToInvoice(row: any, items: InvoiceItem[] = []): Invoice {
-  const customerName = row.customer_name || row.entities?.name || '';
+  const customerName = row.entities?.name || row.customer_name || '';
   return {
     id: row.id,
     spaceId: row.space_id,
@@ -73,6 +73,7 @@ export async function getInvoicesForListFirstPaint(): Promise<Invoice[]> {
   if (!user) throw new Error('Not logged in');
   const spaceId = user.currentSpaceId || user.spaceId;
   if (!spaceId) throw new Error('No space selected');
+  await reconcileInvoicePayers();
 
   const { data, error } = await supabase
     .from('invoices')
@@ -114,7 +115,7 @@ export async function getInvoicesForListFirstPaint(): Promise<Invoice[]> {
   return rows.map((r: any) => {
     const resolvedEntityId = r.entity_id ? resolveEntity(r.entity_id) : null;
     const entityRow = (resolvedEntityId ? resolvedEntityCache.get(resolvedEntityId) : null) ?? r.entities;
-    const customerName = r.customer_name || entityRow?.name || '';
+    const customerName = entityRow?.name || r.customer_name || '';
     return {
     id: r.id,
     spaceId: r.space_id,
@@ -152,6 +153,7 @@ export async function getAllInvoicesForList(): Promise<Invoice[]> {
   if (!user) throw new Error('Not logged in');
   const spaceId = user.currentSpaceId || user.spaceId;
   if (!spaceId) throw new Error('No space selected');
+  await reconcileInvoicePayers();
 
   const { data, error } = await supabase
     .from('invoices')
@@ -252,6 +254,7 @@ export async function getAllInvoices(): Promise<Invoice[]> {
   if (!user) throw new Error('Not logged in');
   const spaceId = user.currentSpaceId || user.spaceId;
   if (!spaceId) throw new Error('No space selected');
+  await reconcileInvoicePayers();
 
   const { data, error } = await supabase
     .from('invoices')
@@ -327,6 +330,7 @@ export async function getAllInvoices(): Promise<Invoice[]> {
 
 /** 根据 ID 获取发票（含明细、account、createdByUser、customer、items 的 category/attribution）；合并指向的客户/供应商会解析为最终目标展示 */
 export async function getInvoiceById(invoiceId: string): Promise<Invoice | null> {
+  await reconcileInvoicePayers();
   const { data: inv, error: invError } = await supabase
     .from('invoices')
     .select(`

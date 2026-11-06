@@ -20,12 +20,94 @@ function mapRow(row: any): Entity {
   };
 }
 
+const invoicePayerReconcile = new Map<string, Promise<void>>();
+
+/**
+ * Income rows can show a payer that is only `customer_name`, or the name of an
+ * entity that was later merged. Settings and the payer picker list live entities
+ * only, so attach those payers to a live entity and store that name on the invoice.
+ */
+export function reconcileInvoicePayers(): Promise<void> {
+  return (async () => {
+    const user = await getCurrentUser();
+    const spaceId = user?.currentSpaceId || user?.spaceId;
+    if (!spaceId) return;
+    let job = invoicePayerReconcile.get(spaceId);
+    if (!job) {
+      job = reconcileInvoicePayersForSpace(spaceId).finally(() => {
+        invoicePayerReconcile.delete(spaceId);
+      });
+      invoicePayerReconcile.set(spaceId, job);
+    }
+    return job;
+  })();
+}
+
+async function reconcileInvoicePayersForSpace(spaceId: string): Promise<void> {
+  const [{ data: invoiceRows, error: invoiceError }, { data: entityRows, error: entityError }] = await Promise.all([
+    supabase.from('invoices').select('id, customer_name, entity_id').eq('space_id', spaceId),
+    supabase.from(TABLE).select('id, name, merged_into_id').eq('space_id', spaceId),
+  ]);
+  if (invoiceError || entityError || !invoiceRows?.length) return;
+
+  const byId = new Map((entityRows || []).map((row) => [row.id as string, row]));
+  const resolveId = (id: string): string => {
+    let current = id;
+    const seen = new Set<string>();
+    while (byId.get(current)?.merged_into_id && !seen.has(current)) {
+      seen.add(current);
+      current = byId.get(current)!.merged_into_id as string;
+    }
+    return current;
+  };
+  const liveByName = new Map<string, { id: string; name: string }>();
+  for (const row of entityRows || []) {
+    if (row.merged_into_id) continue;
+    const key = normalizeEntityName(row.name);
+    if (key && !liveByName.has(key)) liveByName.set(key, { id: row.id, name: row.name });
+  }
+
+  for (const invoice of invoiceRows) {
+    const rawName = String(invoice.customer_name || '').trim();
+    let canonicalId: string | null = null;
+    if (invoice.entity_id && byId.has(invoice.entity_id)) canonicalId = resolveId(invoice.entity_id);
+    if (!canonicalId && isValidEntityName(rawName)) {
+      const key = normalizeEntityName(rawName);
+      const existing = liveByName.get(key);
+      if (existing) {
+        canonicalId = existing.id;
+      } else {
+        try {
+          const created = await findOrCreateEntity(rawName, false);
+          canonicalId = created.id;
+          liveByName.set(key, { id: created.id, name: created.name });
+          byId.set(created.id, { id: created.id, name: created.name, merged_into_id: null });
+        } catch (error) {
+          console.warn('reconcileInvoicePayers', error);
+          continue;
+        }
+      }
+    }
+    if (!canonicalId) continue;
+    const canonicalName = byId.get(canonicalId)?.name || liveByName.get(normalizeEntityName(rawName))?.name;
+    if (!canonicalName) continue;
+    if (invoice.entity_id === canonicalId && invoice.customer_name === canonicalName) continue;
+    const { error } = await supabase
+      .from('invoices')
+      .update({ entity_id: canonicalId, customer_name: canonicalName })
+      .eq('id', invoice.id)
+      .eq('space_id', spaceId);
+    if (error) console.warn('reconcileInvoicePayers update', error);
+  }
+}
+
 /** 获取当前空间所有关联方（仅未被合并的，用于管理列表） */
 export async function getEntities(): Promise<Entity[]> {
   const user = await getCurrentUser();
   if (!user) throw new Error('Not logged in');
   const spaceId = user.currentSpaceId || user.spaceId;
   if (!spaceId) throw new Error('No space selected');
+  await reconcileInvoicePayers();
 
   const { data, error } = await supabase
     .from(TABLE)
