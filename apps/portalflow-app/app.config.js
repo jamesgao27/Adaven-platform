@@ -28,8 +28,9 @@ applyLocalEnvFile();
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "";
-const isReceiptap = process.env.APP_VARIANT === "receiptap";
-const appName = isReceiptap ? "Receiptap" : "Portalflow";
+// Receiptap is a separate repo and store app. This config never builds it.
+const isReceiptap = false;
+const appName = "Portalflow";
 const scheme = isReceiptap ? "receiptap" : "portalflow";
 const bundleId = isReceiptap ? "com.vouchap.app" : "com.portalflow.app";
 const associatedHost = isReceiptap ? "vouchap.com" : "portalflow.app";

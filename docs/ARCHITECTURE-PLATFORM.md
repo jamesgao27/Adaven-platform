@@ -120,7 +120,7 @@ Cross-product customer operations live in the standalone repo **`Adaven-CRM`** (
 ## Independent release
 
 1. Change platform packages on `main` — both apps see it in local/dev immediately. This is **not** a production update by itself (GitHub Actions path filters exclude `packages/**`).
-2. When Portalflow or Receiptap web should go live: push that touches `apps/portalflow-app/**` (ships both Pages projects), or Actions **Deploy Portalflow Web** / **Deploy Receiptap Web**, or `npm run portalflow:deploy:web` / `npm run receiptap:deploy:web`. Receiptap web is `APP_VARIANT=receiptap` on Pages **`receiptap`**, domain `receiptap.aim.link`.
+2. When Portalflow web should go live: push that touches `apps/portalflow-app/**` (Pages `portalflow` only), or Actions **Deploy Portalflow Web**, or `npm run portalflow:deploy:web`. Receiptap bookkeeping is not built here; it ships from `jamesgao27/Receiptap` onto Pages `receiptap`.
 3. When Wholestore should go live: push that touches `apps/wholestore-app/**`, or Actions **Deploy Wholestore Web → Run workflow**, or `npm run wholestore:deploy:web` (and its EAS). The other product stays on the last Direct Upload / store binary.
 4. Run `db-platform` SQL on **Wholestore** only, when ready. Portalflow uses **its own** migration folder.
 5. Never connect Git on Pages `portalflow` or `wholestore`. Leave frozen Pages `vouchap` alone (still the original product).

@@ -185,7 +185,7 @@ function LayoutContent() {
       }
       return;
     }
-    if (currentSpace?.kind === 'consumer' && isBookkeepingPath(pathname)) {
+    if (isBookkeepingPath(pathname)) {
       router.replace('/');
     }
   }, [pathname, router, currentSpace?.kind]);

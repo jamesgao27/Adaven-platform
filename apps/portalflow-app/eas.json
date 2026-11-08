@@ -16,25 +16,9 @@
     "production": {
       "env": { "NODE_ENV": "production" },
       "autoIncrement": true
-    },
-    "receiptap": {
-      "distribution": "store",
-      "env": {
-        "APP_VARIANT": "receiptap"
-      },
-      "autoIncrement": true
     }
   },
   "submit": {
-    "production": {},
-    "receiptap": {
-      "ios": {
-        "ascAppId": "6758536342"
-      },
-      "android": {
-        "serviceAccountKeyPath": "/Users/macbook/Vouchap/vouchap-app/vouchap-f2d1043256dd.json",
-        "track": "production"
-      }
-    }
+    "production": {}
   }
 }

@@ -20,7 +20,7 @@ Adaven-platform (GitHub: jamesgao27/Adaven-platform)
 └── apps/wholestore-app    → Pages **wholestore** · own EAS · Supabase foyecolycmxcneflpant
 
 Independent (other repo — full standalone app, no @adaven/*)
-└── jamesgao27/Vouchap     → Pages **vouchap** · EAS f98c5cea-… · giuacjbfsyrristkigmz
+└── jamesgao27/Receiptap   → Pages **receiptap** · EAS f98c5cea-… · giuacjbfsyrristkigmz
 ```
 
 ## How Web actually ships
@@ -29,15 +29,14 @@ Independent (other repo — full standalone app, no @adaven/*)
 
 | Trigger | What deploys |
 |---------|----------------|
-| Push to `main` touching `apps/portalflow-app/**` | Pages **portalflow** and Pages **receiptap** (two exports of that app) |
+| Push to `main` touching `apps/portalflow-app/**` | Pages **portalflow** only |
 | Push to `main` touching `apps/wholestore-app/**` | Pages **wholestore** only |
-| Push touching only `packages/**` | **Nothing.** Run **Actions → Deploy Portalflow Web / Deploy Receiptap Web / Deploy Wholestore Web → Run workflow**, or the CLI below. |
+| Push touching only `packages/**` | **Nothing.** Run **Actions → Deploy Portalflow Web / Deploy Wholestore Web → Run workflow**, or the CLI below. |
 | Local CLI | Same Direct Upload target as CI |
 
 ```bash
 npx wrangler login                 # once, local CLI only
 npm run portalflow:deploy:web      # Pages **portalflow** only — needs apps/portalflow-app/.env
-npm run receiptap:deploy:web       # Pages **receiptap** only — APP_VARIANT=receiptap, same .env
 npm run wholestore:deploy:web      # Pages **wholestore** only — needs apps/wholestore-app/.env
 
 cd apps/portalflow-app && eas init   # first native ship only — new EAS app
@@ -46,11 +45,11 @@ cd apps/portalflow-app && eas build --platform all --profile production
 
 `EXPO_PUBLIC_*` is baked in at `expo export` time. Local CLI reads the app `.env`. GitHub Actions reads repository secrets (not Cloudflare Dashboard build env, and not a Git-connected Pages build).
 
-Workflows: `.github/workflows/deploy-portalflow-web.yml`, `.github/workflows/deploy-receiptap-web.yml`, `.github/workflows/deploy-wholestore-web.yml`. Shared job: `.github/workflows/deploy-web-reusable.yml`. Do **not** add `packages/**` to the path filters.
+Workflows: `.github/workflows/deploy-portalflow-web.yml`, `.github/workflows/deploy-wholestore-web.yml`. Shared job: `.github/workflows/deploy-web-reusable.yml`. Do **not** add `packages/**` to the path filters. Do **not** add a workflow that deploys Pages `receiptap`.
 
-Receiptap web is not a second app folder. `APP_VARIANT=receiptap` exports bookkeeping only (no tax filing, no firm spaces) from `apps/portalflow-app` onto Pages project **`receiptap`**. The custom domain **`receiptap.aim.link`** is attached on that Pages project in Cloudflare, not in Git. Portalflow web stays the firm workspace; a client email login there shows service history (tax filing, and legal once that history is designed), not the receipt books.
+Portalflow web is the firm workspace and client portal at `portalflow.aim.link`. Bookkeeping is not a product entry. Receiptap web ships from `jamesgao27/Receiptap` onto Pages **`receiptap`** (`receiptap.aim.link`).
 
-**Never** point Portalflow deploy at Pages `vouchap`. That project is the live original product.
+**Never** point Portalflow deploy at Pages `receiptap` or `vouchap`.
 
 ## GitHub Actions secrets / variables
 
@@ -81,9 +80,9 @@ Create via Direct Upload / wrangler. **No Git.**
 | `wrangler.toml` `name` | `portalflow` |
 | Deploys | GitHub Action **Deploy Portalflow Web**, or `npm run portalflow:deploy:web` |
 
-### Independent Vouchap — existing project `vouchap`
+### Receiptap — project `receiptap`
 
-Leave this project on the original standalone product (iterate in `jamesgao27/Vouchap` only). Do **not** Direct-Upload Portalflow there.
+Bookkeeping web ships from `jamesgao27/Receiptap` (`vouchap-app`, `wrangler.toml` name `receiptap`). Do **not** Direct-Upload Portalflow there. Domain `receiptap.aim.link` stays on that Pages project.
 
 ### Wholestore — project `wholestore`
 
@@ -108,10 +107,9 @@ Never reuse Vouchap (`giuacjbfsyrristkigmz`) or Portalflow keys here.
 
 | App | Pages project | Supabase | EAS |
 |-----|---------------|----------|-----|
-| Portalflow | **`portalflow`** | `xvqlqvtfogxkfeillvig` | new `eas init` / `com.portalflow.app` |
-| Receiptap web | **`receiptap`** (domain `receiptap.aim.link`) | same project as Portalflow | store app stays the existing Receiptap EAS project |
+| Portalflow | **`portalflow`** | `xvqlqvtfogxkfeillvig` | firm app / `com.portalflow.app` |
 | Wholestore | **`wholestore`** | `foyecolycmxcneflpant` | own app |
-| Vouchap (frozen, other repo) | **`vouchap`** | `giuacjbfsyrristkigmz` | existing `projectId` / `com.vouchap.app` |
+| Receiptap (other repo) | **`receiptap`** | `giuacjbfsyrristkigmz` | existing project `f98c5cea-…` / new listing `com.receiptap.app` |
 
 ## Kernel UI
 

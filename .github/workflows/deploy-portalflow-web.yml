@@ -1,6 +1,6 @@
-# Ships Pages project `portalflow` only. Never deploy to live Vouchap (`vouchap`).
+# Ships Pages project `portalflow` only. Never deploy to Pages `receiptap`.
 # Kernel-only commits do not run this job; use workflow_dispatch after a packages/*
-# change, or the CLI. Requires a new Supabase project + GitHub secrets below.
+# change, or the CLI.
 name: Deploy Portalflow Web
 
 on:
