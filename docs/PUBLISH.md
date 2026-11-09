@@ -47,7 +47,7 @@ cd apps/portalflow-app && eas build --platform all --profile production
 
 Workflows: `.github/workflows/deploy-portalflow-web.yml`, `.github/workflows/deploy-wholestore-web.yml`. Shared job: `.github/workflows/deploy-web-reusable.yml`. Do **not** add `packages/**` to the path filters. Do **not** add a workflow that deploys Pages `receiptap`.
 
-Portalflow web is the firm workspace at `portalflow.aim.link`. It does not switch into a client space. Receiptap web ships from `jamesgao27/Receiptap` onto the original Pages project **`vouchap`**.
+Portalflow web is the firm workspace at `portalflow.aim.link`. It does not switch into a client space. Receiptap web ships from `jamesgao27/Receiptap` onto Pages **`receiptap`** (`receiptap.pages.dev`).
 
 **Never** point Portalflow deploy at Pages `receiptap` or `vouchap`.
 
@@ -80,9 +80,9 @@ Create via Direct Upload / wrangler. **No Git.**
 | `wrangler.toml` `name` | `portalflow` |
 | Deploys | GitHub Action **Deploy Portalflow Web**, or `npm run portalflow:deploy:web` |
 
-### Receiptap web — original project `vouchap`
+### Receiptap web — project `receiptap`
 
-Bookkeeping web ships from `jamesgao27/Receiptap` (`vouchap-app`) onto the original Pages project **`vouchap`**. The product name is Receiptap. Do **not** recreate Pages project `receiptap` from Portalflow. Domain `receiptap.aim.link` belongs on project `vouchap`.
+Bookkeeping web ships from `jamesgao27/Receiptap` (`vouchap-app`) onto Pages **`receiptap`**. The default URL is `receiptap.pages.dev`. Direct Upload only. Do not connect Git.
 
 ### Wholestore — project `wholestore`
 
@@ -109,7 +109,7 @@ Never reuse Vouchap (`giuacjbfsyrristkigmz`) or Portalflow keys here.
 |-----|---------------|----------|-----|
 | Portalflow | **`portalflow`** | `xvqlqvtfogxkfeillvig` | firm app / `com.portalflow.app` |
 | Wholestore | **`wholestore`** | `foyecolycmxcneflpant` | own app |
-| Receiptap (other repo) | **`vouchap`** | `giuacjbfsyrristkigmz` | existing project `f98c5cea-…` / new listing `com.receiptap.app` |
+| Receiptap (other repo) | **`receiptap`** | `giuacjbfsyrristkigmz` | existing project `f98c5cea-…` / new listing `com.receiptap.app` |
 
 ## Kernel UI
 
