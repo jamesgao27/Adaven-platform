@@ -16,10 +16,8 @@ import { configureProductUi } from '@adaven/platform-ui';
 import { PortalflowSetupExtras } from './portalflow-setup-extras';
 import { getPortalflowSidebarNavItems } from './portalflow-sidebar-nav';
 import { getPortalflowManagementMenuItems } from './portalflow-management-menu';
-import { isReceiptap } from './feature-flags';
-
-const nativeScheme = isReceiptap ? 'receiptap://' : 'portalflow://';
-const publicOrigin = isReceiptap ? 'https://vouchap.com' : 'https://portalflow.aim.link';
+const nativeScheme = 'portalflow://';
+const publicOrigin = 'https://portalflow.aim.link';
 
 function readAuthProvidersFromExtra(): Partial<Record<AuthProviderId, AuthProviderConfig>> {
   const extra = (Constants.expoConfig?.extra ?? {}) as Record<string, unknown>;
@@ -75,36 +73,22 @@ registerOnSpaceCreated(async ({ spaceId, kind, clientProfileType }) => {
 });
 
 configureProductUi({
-  productName: isReceiptap ? 'Receiptap' : 'Portalflow',
-  logo: isReceiptap ? require('../../assets/receiptap-icon.png') : require('../../assets/logo.png'),
-  sidebarLogo: isReceiptap ? require('../../assets/receiptap-icon.png') : require('../../assets/logo3.png'),
-  getBrand: (_space) => {
-    const receiptap = {
-      productName: 'Receiptap',
-      logo: require('../../assets/receiptap-icon.png') as number,
-      sidebarLogo: require('../../assets/receiptap-icon.png') as number,
-    };
-    const portalflow = {
-      productName: 'Portalflow',
-      logo: require('../../assets/logo.png') as number,
-      sidebarLogo: require('../../assets/logo3.png') as number,
-    };
-    if (isReceiptap) return receiptap;
-    return portalflow;
-  },
-  sloganLine1: isReceiptap ? 'Voucher Snapping,' : 'Client services,',
-  sloganLine2: isReceiptap ? 'Balance Clarity.' : 'in one firm workspace.',
+  productName: 'Portalflow',
+  logo: require('../../assets/logo.png'),
+  sidebarLogo: require('../../assets/logo3.png'),
+  getBrand: () => ({
+    productName: 'Portalflow',
+    logo: require('../../assets/logo.png') as number,
+    sidebarLogo: require('../../assets/logo3.png') as number,
+  }),
+  sloganLine1: 'Client services,',
+  sloganLine2: 'in one firm workspace.',
   termsUrl: `${publicOrigin}/terms`,
   privacyUrl: `${publicOrigin}/privacy`,
   homePath: '/',
-  spaceKinds: isReceiptap
-    ? [{ id: 'consumer', label: 'Personal' }]
-    : [
-        { id: 'consumer', label: 'Client' },
-        { id: 'provider', label: 'Firm' },
-      ],
-  defaultSpaceKind: isReceiptap ? 'consumer' : 'provider',
-  ...(isReceiptap ? { allowedSpaceKinds: ['consumer'] } : {}),
+  spaceKinds: [{ id: 'provider', label: 'Firm' }],
+  defaultSpaceKind: 'provider',
+  allowedSpaceKinds: ['provider'],
   getSidebarNavItems: getPortalflowSidebarNavItems,
   getManagementMenuItems: (space) => getPortalflowManagementMenuItems(space?.kind as 'consumer' | 'provider' | undefined),
   uploadSpaceImage: async (fileUri, spaceId) => {
@@ -125,8 +109,8 @@ configureProductUi({
   canSubmitSetup: (kind, extras) =>
     kind !== 'provider' || typeof extras.verificationFileUri === 'string',
   createSpace: async ({ name, address, kind, extras }) => {
-    if (isReceiptap && kind === 'provider') {
-      return { error: new Error('Receiptap only creates bookkeeping spaces.') };
+    if (kind !== 'provider') {
+      return { error: new Error('Portalflow only creates firm workspaces.') };
     }
     const { createSpace } = await import('./auth');
     const { uploadFirmVerificationFile } = await import('./supabase');

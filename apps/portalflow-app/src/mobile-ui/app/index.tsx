@@ -234,6 +234,7 @@ export default function HomeScreen() {
     }
     
     console.log('Index: User spaces count:', spaces.length);
+    spaces = spaces.filter((row) => row.space?.kind === 'provider');
     if (spaces.length > 0) {
       console.log('Index: User spaces:', spaces.map(s => ({
         spaceId: s.spaceId,
@@ -369,7 +370,7 @@ export default function HomeScreen() {
           router.replace('/setup-space');
           return;
         }
-        const spaces = await getUserSpaces();
+        const spaces = (await getUserSpaces()).filter((row) => row.space?.kind === 'provider');
         if (spaces.length === 0) {
           router.replace('/setup-space');
           return;
@@ -421,13 +422,11 @@ export default function HomeScreen() {
     const user = await getCurrentUser();
     if (!user) return;
 
-    // 如果用户已经有当前空间，不需要处理
-    if (user.currentSpaceId || user.spaceId) {
+    const spaces = (await getUserSpaces()).filter((row) => row.space?.kind === 'provider');
+    const currentId = user.currentSpaceId || user.spaceId;
+    if (currentId && spaces.some((row) => row.spaceId === currentId)) {
       return;
     }
-
-    // 检查用户有哪些空间
-    const spaces = await getUserSpaces();
     if (spaces.length > 0) {
       // 有空间但没有当前空间，设置到第一个空间
       const { error } = await setCurrentSpace(spaces[0].spaceId);
@@ -453,7 +452,7 @@ export default function HomeScreen() {
   const loadSpaces = async () => {
     try {
       const data = await getUserSpaces();
-      setSpaces(data);
+      setSpaces(data.filter((row) => row.space?.kind === 'provider'));
     } catch (error) {
       console.error('Error loading spaces:', error);
       showToast('Failed to load spaces', 'error');
@@ -463,6 +462,11 @@ export default function HomeScreen() {
   const handleSwitchSpace = async (spaceId: string) => {
     try {
       setSwitching(true);
+      const chosen = spaces.find((row) => row.spaceId === spaceId);
+      if (chosen?.space?.kind !== 'provider') {
+        setSwitching(false);
+        return;
+      }
       const { error } = await setCurrentSpace(spaceId);
       if (error) {
         showToast(error.message, 'error');

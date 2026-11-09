@@ -28,23 +28,21 @@ applyLocalEnvFile();
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "";
-// Receiptap is a separate repo and store app. This config never builds it.
-const isReceiptap = false;
 const appName = "Portalflow";
-const scheme = isReceiptap ? "receiptap" : "portalflow";
-const bundleId = isReceiptap ? "com.vouchap.app" : "com.portalflow.app";
-const associatedHost = isReceiptap ? "vouchap.com" : "portalflow.app";
-const cameraPermission = `${appName} requires Camera and Photo Library access to scan and upload your receipts for digital tracking.`;
+const scheme = "portalflow";
+const bundleId = "com.portalflow.app";
+const associatedHost = "portalflow.app";
+const cameraPermission = `${appName} requires Camera and Photo Library access to upload client documents.`;
 
 export default {
   expo: {
     name: appName,
-    slug: isReceiptap ? "vouchap" : "portalflow",
+    slug: "portalflow",
     jsEngine: "jsc",
-    version: isReceiptap ? "2.6.7" : pkg.version,
+    version: pkg.version,
     owner: "aimlink",
     orientation: "default",
-    icon: isReceiptap ? "./assets/receiptap-icon.png" : "./assets/logo2.png",
+    icon: "./assets/logo2.png",
     scheme,
     userInterfaceStyle: "light",
     splash: {
@@ -55,12 +53,12 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: bundleId,
-      buildNumber: isReceiptap ? "45" : "1",
+      buildNumber: "1",
       associatedDomains: [`applinks:${associatedHost}`]
     },
     android: {
       package: bundleId,
-      versionCode: isReceiptap ? 62 : 1,
+      versionCode: 1,
       permissions: [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
@@ -110,23 +108,19 @@ export default {
     ],
     web: {
       name: appName,
-      favicon: isReceiptap ? "./assets/receiptap-icon.png" : "./assets/favicon.png"
+      favicon: "./assets/favicon.png"
     },
     ...(process.env.EXPO_PUBLIC_WEB_BASE_PATH
       ? { experiments: { baseUrl: process.env.EXPO_PUBLIC_WEB_BASE_PATH } }
       : {}),
     extra: {
-      ...(isReceiptap
-        ? { eas: { projectId: "f98c5cea-fd51-41e3-9c9c-1512c6b1a8e7" }, appVariant: "receiptap" }
-        : {}),
       supabaseUrl,
       supabaseAnonKey,
-      showAiInventory: isReceiptap
-        ? false
-        : process.env.NODE_ENV !== "production"
+      showAiInventory:
+        process.env.NODE_ENV !== "production"
           ? true
           : process.env.EXPO_PUBLIC_SHOW_AI_INVENTORY === "true",
-      showTaxFiling: !isReceiptap,
+      showTaxFiling: true,
       geminiApiKey: "server-side-gemini-proxy",
       ...(process.env.EXPO_PUBLIC_AI_PROVIDER === "deepseek"
         ? { aiProvider: "deepseek" }
