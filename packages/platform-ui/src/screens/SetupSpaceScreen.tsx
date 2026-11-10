@@ -95,6 +95,12 @@ export default function SetupHouseholdScreen() {
       
       setSpaceNames(names);
 
+      const owned = filterToAllowedSpaces(await getUserSpaces());
+      if (owned.length > 0 && invitations.length === 0) {
+        router.replace('/');
+        return;
+      }
+
       // 始终优先显示创建模式（首位展示创建新家庭）
       // 如果有邀请，可以通过按钮切换到邀请模式
       setMode('create');
@@ -539,7 +545,7 @@ const stylesWeb = StyleSheet.create({
   backBtn: { position: 'absolute', left: 24, top: 24, zIndex: 1, padding: 4 },
   header: { alignItems: 'center', marginBottom: 24 },
   logoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 16 },
-  logoImg: { width: 48, height: 48, borderRadius: '22%', overflow: 'hidden' },
+  logoImg: { width: 48, height: 48, borderRadius: 11, overflow: 'hidden' },
   brandName: { fontSize: 24, fontWeight: '800', color: '#6C5CE7', letterSpacing: -0.5 },
   iconContainer: { marginBottom: 12 },
   circle: { width: 88, height: 88, borderRadius: 44, backgroundColor: '#E9ECEF', justifyContent: 'center', alignItems: 'center', alignSelf: 'center' },

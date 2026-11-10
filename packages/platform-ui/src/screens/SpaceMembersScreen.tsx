@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
@@ -16,8 +17,10 @@ import {
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { Path } from 'react-native-svg';
 import {
   getSpaceMembers,
+  setSpaceMemberAdmin,
   SpaceMember,
   getCurrentUser,
   getPlatformClient,
@@ -29,6 +32,27 @@ import {
 import { GradientText } from '../lib/GradientText';
 import { showToast } from '../lib/toast';
 import { confirmDestructive } from '../lib/alertWeb';
+import { getProductUi } from '../product';
+
+const adminShield = require('../../assets/admin-shield.png');
+
+function MemberShield({ lit }: { lit: boolean }) {
+  if (lit) {
+    return <Image source={adminShield} style={styles.adminShield} resizeMode="contain" />;
+  }
+  return (
+    <Svg width={18} height={21} viewBox="0 0 72 84">
+      <Path
+        d="M33 0 L17 8 L4 12 L1 15 L0 41 L4 53 L8 60 L18 70 L34 83 L36 83 L54 69 L65 56 L70 43 L71 16 L68 12 L55 8 L41 1 Z"
+        fill="none"
+        stroke="#B2BEC3"
+        strokeWidth={3.6}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+    </Svg>
+  );
+}
 
 export default function SpaceMembersScreen() {
   const router = useRouter();
@@ -494,6 +518,27 @@ export default function SpaceMembersScreen() {
     );
   };
 
+  const adminOnMembersList = getProductUi().adminOnMembersList === true;
+
+  const handleToggleAdmin = (member: SpaceMember) => {
+    const nextAdmin = !member.isAdmin;
+    confirmDestructive(
+      nextAdmin ? 'Make Admin' : 'Remove Admin',
+      nextAdmin
+        ? `${member.name || member.email} will be able to invite, remove members, and change admins.`
+        : `${member.name || member.email} will no longer be an admin.`,
+      async () => {
+        const { error } = await setSpaceMemberAdmin(member.userId, nextAdmin);
+        if (error) {
+          showToast(error.message, 'error');
+          return;
+        }
+        await loadMembersOnly();
+      },
+      { confirmLabel: 'Confirm' }
+    );
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />
@@ -539,6 +584,21 @@ export default function SpaceMembersScreen() {
               {members.map((member, index) => {
                 const isCurrentUser = member.userId === currentUserId;
                 const isLast = index === members.length - 1;
+                const showShield = adminOnMembersList && (member.isAdmin || (isCurrentUserAdmin && !isCurrentUser));
+                const shieldControl = showShield ? (
+                  <View style={styles.memberMarkSlot}>
+                    {isCurrentUserAdmin && !isCurrentUser ? (
+                      <TouchableOpacity
+                        onPress={() => handleToggleAdmin(member)}
+                        accessibilityLabel={member.isAdmin ? 'Remove Admin' : 'Make Admin'}
+                      >
+                        <MemberShield lit={member.isAdmin} />
+                      </TouchableOpacity>
+                    ) : (
+                      <MemberShield lit />
+                    )}
+                  </View>
+                ) : null;
                 return (
                   <View key={member.userId} style={[styles.compactItem, isLast && styles.compactItemLast]}>
                     <View style={styles.compactItemContent}>
@@ -546,26 +606,48 @@ export default function SpaceMembersScreen() {
                         <Text style={styles.compactName}>{getDisplayName(member)}</Text>
                         <Text style={styles.compactEmail}>{member.email}</Text>
                       </View>
-                      <View style={styles.compactBadges}>
-                        {isCurrentUser && (
-                          <View style={styles.compactBadge}>
-                            <Text style={styles.compactBadgeText}>You</Text>
-                          </View>
-                        )}
-                        {member.isAdmin && (
-                          <View style={[styles.compactBadge, styles.adminBadgeCompact]}>
-                            <Text style={[styles.compactBadgeText, styles.adminBadgeTextCompact]}>Admin</Text>
-                          </View>
-                        )}
-                      </View>
+                      {!adminOnMembersList ? (
+                        <View style={styles.compactBadges}>
+                          {isCurrentUser ? (
+                            <View style={styles.compactBadge}>
+                              <Text style={styles.compactBadgeText}>You</Text>
+                            </View>
+                          ) : null}
+                          {member.isAdmin ? (
+                            <View style={[styles.compactBadge, styles.adminBadgeCompact]}>
+                              <Text style={[styles.compactBadgeText, styles.adminBadgeTextCompact]}>Admin</Text>
+                            </View>
+                          ) : null}
+                        </View>
+                      ) : null}
                     </View>
+                    {adminOnMembersList ? (
+                      <View style={styles.memberMarks}>
+                        {shieldControl}
+                        {isCurrentUser ? (
+                          <View style={styles.memberMarkSlot}>
+                            <View style={styles.compactBadge}>
+                              <Text style={styles.compactBadgeText}>You</Text>
+                            </View>
+                          </View>
+                        ) : null}
+                      </View>
+                    ) : null}
                     {isCurrentUserAdmin && !isCurrentUser && (
-                      <TouchableOpacity
-                        style={styles.compactRemoveButton}
-                        onPress={() => handleRemoveMember(member)}
-                      >
-                        <Ionicons name="trash-outline" size={20} color="#E74C3C" />
-                      </TouchableOpacity>
+                      adminOnMembersList ? (
+                        <View style={styles.memberMarkSlot}>
+                          <TouchableOpacity onPress={() => handleRemoveMember(member)}>
+                            <Ionicons name="trash-outline" size={20} color="#E74C3C" />
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
+                        <TouchableOpacity
+                          style={styles.compactRemoveButton}
+                          onPress={() => handleRemoveMember(member)}
+                        >
+                          <Ionicons name="trash-outline" size={20} color="#E74C3C" />
+                        </TouchableOpacity>
+                      )
                     )}
                   </View>
                 );
@@ -603,27 +685,27 @@ export default function SpaceMembersScreen() {
                 <View key={invitation.id} style={[styles.compactItem, isLast && styles.compactItemLast]}>
                   <View style={styles.compactItemContent}>
                     <Text style={styles.compactEmail}>{invitation.inviteeEmail}</Text>
-                    <View style={styles.compactBadges}>
+                  </View>
+                  <View style={styles.memberMarks}>
+                    <View style={styles.memberMarkSlot}>
                       {isTemp && inviting ? (
-                        <View style={[styles.compactBadge, styles.pendingBadge, { flexDirection: 'row', alignItems: 'center' }]}>
-                          <ActivityIndicator size="small" color="#4CAF50" style={{ marginRight: 4 }} />
-                          <Text style={[styles.compactBadgeText, styles.pendingBadgeText]}>Sending...</Text>
+                        <View style={[styles.compactBadge, styles.pendingBadge, styles.markBadge]}>
+                          <ActivityIndicator size="small" color="#4CAF50" />
                         </View>
                       ) : (
-                        <View style={[styles.compactBadge, styles.pendingBadge]}>
-                          <Text style={[styles.compactBadgeText, styles.pendingBadgeText]}>Pending</Text>
+                        <View style={[styles.compactBadge, styles.pendingBadge, styles.markBadge]}>
+                          <Text numberOfLines={1} style={[styles.compactBadgeText, styles.markBadgeText, styles.pendingBadgeText]}>Pending</Text>
                         </View>
                       )}
                     </View>
+                    <View style={styles.memberMarkSlot}>
+                      {!isTemp ? (
+                        <TouchableOpacity onPress={() => handleCancelInvitation(invitation.id)}>
+                          <Ionicons name="close-circle-outline" size={20} color="#636E72" />
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
                   </View>
-                  {!isTemp && (
-                    <TouchableOpacity
-                      style={styles.compactActionButton}
-                      onPress={() => handleCancelInvitation(invitation.id)}
-                    >
-                      <Ionicons name="close-circle-outline" size={20} color="#636E72" />
-                    </TouchableOpacity>
-                  )}
                 </View>
                 );
               })}
@@ -637,18 +719,19 @@ export default function SpaceMembersScreen() {
                 <View key={invitation.id} style={[styles.compactItem, styles.cancelledItem, isLast && styles.compactItemLast]}>
                   <View style={styles.compactItemContent}>
                     <Text style={[styles.compactEmail, styles.cancelledText]}>{invitation.inviteeEmail}</Text>
-                    <View style={styles.compactBadges}>
-                      <View style={[styles.compactBadge, styles.declinedBadge]}>
-                        <Text style={[styles.compactBadgeText, styles.declinedBadgeText]}>Declined</Text>
+                  </View>
+                  <View style={styles.memberMarks}>
+                    <View style={styles.memberMarkSlot}>
+                      <View style={[styles.compactBadge, styles.declinedBadge, styles.markBadge]}>
+                        <Text numberOfLines={1} style={[styles.compactBadgeText, styles.markBadgeText, styles.declinedBadgeText]}>Declined</Text>
                       </View>
                     </View>
+                    <View style={styles.memberMarkSlot}>
+                      <TouchableOpacity onPress={() => handleReinvite(invitation.inviteeEmail)}>
+                        <Ionicons name="mail-outline" size={20} color="#6C5CE7" />
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                  <TouchableOpacity
-                    style={styles.compactActionButton}
-                    onPress={() => handleReinvite(invitation.inviteeEmail)}
-                  >
-                    <Ionicons name="mail-outline" size={20} color="#6C5CE7" />
-                  </TouchableOpacity>
                 </View>
                 );
               })}
@@ -661,18 +744,19 @@ export default function SpaceMembersScreen() {
                 <View key={invitation.id} style={[styles.compactItem, styles.cancelledItem, isLast && styles.compactItemLast]}>
                   <View style={styles.compactItemContent}>
                     <Text style={[styles.compactEmail, styles.cancelledText]}>{invitation.inviteeEmail}</Text>
-                    <View style={styles.compactBadges}>
-                      <View style={[styles.compactBadge, styles.cancelledBadge]}>
-                        <Text style={[styles.compactBadgeText, styles.cancelledBadgeText]}>Cancelled</Text>
+                  </View>
+                  <View style={styles.memberMarks}>
+                    <View style={styles.memberMarkSlot}>
+                      <View style={[styles.compactBadge, styles.cancelledBadge, styles.markBadge]}>
+                        <Text numberOfLines={1} style={[styles.compactBadgeText, styles.markBadgeText, styles.cancelledBadgeText]}>Cancelled</Text>
                       </View>
                     </View>
+                    <View style={styles.memberMarkSlot}>
+                      <TouchableOpacity onPress={() => handleReinvite(invitation.inviteeEmail)}>
+                        <Ionicons name="mail-outline" size={20} color="#6C5CE7" />
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                  <TouchableOpacity
-                    style={styles.compactActionButton}
-                    onPress={() => handleReinvite(invitation.inviteeEmail)}
-                  >
-                    <Ionicons name="mail-outline" size={20} color="#6C5CE7" />
-                  </TouchableOpacity>
                 </View>
                 );
               })}
@@ -683,18 +767,19 @@ export default function SpaceMembersScreen() {
                 <View key={invitation.id} style={[styles.compactItem, styles.cancelledItem, isLast && styles.compactItemLast]}>
                   <View style={styles.compactItemContent}>
                     <Text style={[styles.compactEmail, styles.cancelledText]}>{invitation.inviteeEmail}</Text>
-                    <View style={styles.compactBadges}>
-                      <View style={[styles.compactBadge, styles.removedBadge]}>
-                        <Text style={[styles.compactBadgeText, styles.removedBadgeText]}>Removed</Text>
+                  </View>
+                  <View style={styles.memberMarks}>
+                    <View style={styles.memberMarkSlot}>
+                      <View style={[styles.compactBadge, styles.removedBadge, styles.markBadge]}>
+                        <Text numberOfLines={1} style={[styles.compactBadgeText, styles.markBadgeText, styles.removedBadgeText]}>Removed</Text>
                       </View>
                     </View>
+                    <View style={styles.memberMarkSlot}>
+                      <TouchableOpacity onPress={() => handleReinvite(invitation.inviteeEmail)}>
+                        <Ionicons name="mail-outline" size={20} color="#6C5CE7" />
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                  <TouchableOpacity
-                    style={styles.compactActionButton}
-                    onPress={() => handleReinvite(invitation.inviteeEmail)}
-                  >
-                    <Ionicons name="mail-outline" size={20} color="#6C5CE7" />
-                  </TouchableOpacity>
                 </View>
                 );
               })}
@@ -902,11 +987,34 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 2,
   },
+  memberMarks: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginLeft: 8,
+  },
+  adminShield: {
+    width: 18,
+    height: 21,
+  },
+  memberMarkSlot: {
+    width: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   compactBadges: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     marginLeft: 12,
+  },
+  markBadge: {
+    maxWidth: 48,
+    paddingHorizontal: 2,
+    paddingVertical: 2,
+  },
+  markBadgeText: {
+    fontSize: 10,
   },
   compactBadge: {
     backgroundColor: '#F0F4FF',

@@ -1631,10 +1631,12 @@ export default function ReceiptDetailsScreen() {
           animationType="fade"
           onRequestClose={() => setFileDetailForModal(null)}
         >
+          <View style={{ flex: 1, backgroundColor: '#525659' }}>
           <FileDetailModal
             file={fileDetailForModal}
             onClose={() => setFileDetailForModal(null)}
           />
+          </View>
         </Modal>
       )}
 

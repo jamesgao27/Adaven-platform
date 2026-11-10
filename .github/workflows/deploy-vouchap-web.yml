@@ -1,0 +1,26 @@
+# Client bookkeeping web only. Manual until the current Vouchap database
+# can serve the shared space / invite kernel. Do not add this to the Portalflow path filter.
+name: Deploy Vouchap Web
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vouchap-web
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    permissions:
+      contents: read
+      deployments: write
+    uses: ./.github/workflows/deploy-web-reusable.yml
+    with:
+      app_dir: apps/portalflow-app
+      project_name: vouchap
+      account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      app_variant: vouchap
+    secrets:
+      expo_public_supabase_url: ${{ secrets.VOUCHAP_EXPO_PUBLIC_SUPABASE_URL }}
+      expo_public_supabase_anon_key: ${{ secrets.VOUCHAP_EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+      cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}

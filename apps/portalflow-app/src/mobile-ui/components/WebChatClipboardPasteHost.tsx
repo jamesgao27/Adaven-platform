@@ -76,7 +76,8 @@ export function WebChatClipboardPasteHost() {
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'v') return;
+      const key = e.key?.toLowerCase();
+      if (!key || !(e.metaKey || e.ctrlKey) || key !== 'v') return;
       if (e.repeat || shortcutHeld) return;
       shortcutHeld = true;
       shortcutHandled = false;
@@ -84,8 +85,8 @@ export function WebChatClipboardPasteHost() {
     };
 
     const onKeyUp = (e: KeyboardEvent) => {
-      const key = e.key.toLowerCase();
-      if (key !== 'v' && e.key !== 'Meta' && e.key !== 'Control') return;
+      const key = e.key?.toLowerCase();
+      if (!key || (key !== 'v' && key !== 'meta' && key !== 'control')) return;
       shortcutHeld = false;
       shortcutHandled = false;
     };

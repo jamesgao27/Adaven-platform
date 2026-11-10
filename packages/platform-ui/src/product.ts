@@ -82,6 +82,11 @@ export type ProductUiConfig = {
   getSidebarNavItems?: (space: PlatformSpace | null) => SidebarNavItem[];
   /** Product rows under kernel Members / Space roles on Management. */
   getManagementMenuItems?: (space: PlatformSpace | null) => ManagementMenuItem[];
+  /**
+   * Vouchap keeps admin changes on the members list and hides the Space roles page.
+   * Portalflow firm keeps the dedicated roles page.
+   */
+  adminOnMembersList?: boolean;
   uploadSpaceImage?: (fileUri: string, spaceId: string) => Promise<string>;
   uploadUserLogo?: (fileUri: string, userId: string) => Promise<string>;
   getSidebarClaimCount?: (email: string) => Promise<number>;
@@ -123,5 +128,9 @@ export function getManagementMenu(space: PlatformSpace | null): ManagementMenuIt
   const product = getProductUi();
   const extras = product.getManagementMenuItems?.(space) ?? [];
   const extraIds = new Set(extras.map((item) => item.id));
-  return [...KERNEL_MANAGEMENT_MENU.filter((item) => !extraIds.has(item.id)), ...extras];
+  const kernel = KERNEL_MANAGEMENT_MENU.filter((item) => {
+    if (item.id === 'space-roles' && product.adminOnMembersList) return false;
+    return !extraIds.has(item.id);
+  });
+  return [...kernel, ...extras];
 }

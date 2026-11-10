@@ -3,7 +3,6 @@
  * Extract plain text client-side: .docx via JSZip + xmldom (no Node fs — React Native safe).
  */
 import { DOMParser } from '@xmldom/xmldom';
-import JSZip from 'jszip';
 
 const MAX_CHARS = 800_000;
 
@@ -106,6 +105,9 @@ function paragraphsFromWordDocumentXml(xml: string): string {
 }
 
 async function extractDocxPlainText(arrayBuffer: ArrayBuffer): Promise<string> {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const loaded = require('jszip') as { loadAsync: (data: ArrayBuffer) => Promise<{ file: (name: string) => { async: (kind: 'uint8array') => Promise<Uint8Array> } | null }> } & { default?: { loadAsync: (data: ArrayBuffer) => Promise<{ file: (name: string) => { async: (kind: 'uint8array') => Promise<Uint8Array> } | null }> } };
+  const JSZip = loaded.default ?? loaded;
   const zip = await JSZip.loadAsync(arrayBuffer);
   const file = zip.file('word/document.xml');
   if (!file) {

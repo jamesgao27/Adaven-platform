@@ -14,6 +14,8 @@
     "web:clear": "expo start --web --clear",
     "web:export": "npx expo export -p web",
     "deploy:web": "npx expo export -p web && cp -f public/_redirects dist/_redirects && npx wrangler pages deploy dist --project-name=portalflow",
+    "web:vouchap": "APP_VARIANT=vouchap npm run web",
+    "deploy:vouchap": "APP_VARIANT=vouchap npx expo export -p web && cp -f public/_redirects dist/_redirects && npx wrangler pages deploy dist --project-name=vouchap --branch=main --commit-dirty=true",
     "eas-build-pre-install": "cd ../.. && npm ci",
     "prebuild": "expo prebuild",
     "prebuild:clean": "expo prebuild --clean",

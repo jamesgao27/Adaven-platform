@@ -12,7 +12,6 @@ import {
   Pressable,
   Image,
   Platform,
-  Dimensions,
   Linking,
   BackHandler,
   ActivityIndicator,
@@ -36,7 +35,7 @@ import {
   renderDocxIntoContainer,
   isLegacyWordDocBytes,
   writeNativeDocxPreviewHtmlPage,
-  writeNativePdfPreviewHtmlPage,
+  buildNativePdfViewerHtml,
   iosWebViewAllowingReadAccessUrlForFileUri,
 } from '@/lib/office-inline-preview';
 import { promptSaveAttachmentImage } from './AttachmentImagePreviewModal';
@@ -136,11 +135,11 @@ export function FileDetailModal({ file, onClose }: FileDetailModalProps) {
   const extractedPreview =
     file.extractedPreview ?? (file.extracted_data ? buildExtractedPreview(file.extracted_data) : []);
   const showRightPanel = !file.hideRightPanel;
-
   const paneKind = useMemo(
     () => getPreviewPaneKind(file.imageUrl, file.docType, file.name),
     [file.imageUrl, file.docType, file.name]
   );
+  const fullscreenPdf = Platform.OS !== 'web' && paneKind === 'pdf';
 
   const [officeSheetState, setOfficeSheetState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [officeWordState, setOfficeWordState] = useState<'idle' | 'loading' | 'legacy' | 'ready' | 'error'>('idle');
@@ -149,10 +148,6 @@ export function FileDetailModal({ file, onClose }: FileDetailModalProps) {
   const [nativeDocxUri, setNativeDocxUri] = useState<string | null>(null);
   const [nativePdfState, setNativePdfState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [nativePdfUri, setNativePdfUri] = useState<string | null>(null);
-  const nativePreviewMinHeight = Math.max(
-    280,
-    Math.round(Dimensions.get('window').height * (showRightPanel ? 0.38 : 0.7)),
-  );
   const docxWebRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -165,7 +160,7 @@ export function FileDetailModal({ file, onClose }: FileDetailModalProps) {
     setNativePdfUri(null);
   }, [file.id]);
 
-  /** Native: download PDF, then preview via a local HTML+PDF.js page (iOS file:// PDF is often a white screen). */
+  /** Native: same source as web (signed https URL). WebView has no built-in PDF viewer, so PDF.js draws it. */
   useEffect(() => {
     if (Platform.OS === 'web' || paneKind !== 'pdf' || !file.imageUrl) {
       setNativePdfState('idle');
@@ -178,12 +173,8 @@ export function FileDetailModal({ file, onClose }: FileDetailModalProps) {
     (async () => {
       try {
         const viewUrl = await getTaxFilingViewUrl(file.imageUrl!);
-        const dest = `${FileSystem.cacheDirectory ?? ''}portalflow-pdf-preview-${file.id.slice(0, 8)}-${Date.now()}.pdf`;
-        const { uri } = await FileSystem.downloadAsync(viewUrl, dest);
         if (cancelled) return;
-        const htmlUri = await writeNativePdfPreviewHtmlPage(uri, file.id);
-        if (cancelled) return;
-        setNativePdfUri(htmlUri);
+        setNativePdfUri(viewUrl);
         setNativePdfState('ready');
       } catch (e) {
         console.error('[FileDetailModal] native PDF preview:', e);
@@ -628,25 +619,25 @@ export function FileDetailModal({ file, onClose }: FileDetailModalProps) {
         );
       }
       if (nativePdfState === 'ready' && nativePdfUri && WebView) {
-        const readUrl = iosWebViewAllowingReadAccessUrlForFileUri(nativePdfUri);
         return (
-          <WebView
-            source={{ uri: nativePdfUri }}
-            style={[styles.thumb, { minHeight: nativePreviewMinHeight }]}
-            originWhitelist={['*']}
-            scalesPageToFit
-            allowFileAccess
-            allowFileAccessFromFileURLs
-            allowUniversalAccessFromFileURLs
-            mixedContentMode="always"
-            javaScriptEnabled
-            domStorageEnabled
-            setSupportMultipleWindows={false}
-            startInLoadingState
-            onError={() => setNativePdfState('error')}
-            onHttpError={() => setNativePdfState('error')}
-            {...(Platform.OS === 'ios' ? { allowingReadAccessToURL: readUrl } : {})}
-          />
+          <View style={{ flex: 1, width: '100%', alignSelf: 'stretch', backgroundColor: '#525659' }}>
+            <WebView
+              source={{
+                html: buildNativePdfViewerHtml(nativePdfUri),
+                baseUrl: 'https://cdn.jsdelivr.net/',
+              }}
+              style={{ flex: 1, width: '100%', backgroundColor: '#525659' }}
+              originWhitelist={['*']}
+              javaScriptEnabled
+              domStorageEnabled
+              mixedContentMode="always"
+              setSupportMultipleWindows={false}
+              allowFileAccess
+              allowUniversalAccessFromFileURLs
+              startInLoadingState
+              onError={() => setNativePdfState('error')}
+            />
+          </View>
         );
       }
       return (
@@ -677,36 +668,60 @@ export function FileDetailModal({ file, onClose }: FileDetailModalProps) {
   };
 
   return (
-    <View style={styles.overlay} pointerEvents="box-none">
-      <Pressable style={styles.backdrop} onPress={onClose} />
+    <View style={fullscreenPdf ? styles.pdfFill : styles.overlay} pointerEvents="box-none">
+      {fullscreenPdf ? null : <Pressable style={styles.backdrop} onPress={onClose} />}
       <View
         nativeID={WEB_CARD_NATIVE_ID}
         style={[
-          styles.card,
-          Platform.OS === 'web' && styles.cardWeb,
-          {
-            width: Math.min(overlayViewport.width * 0.98, 960),
-            height: overlayViewport.height * 0.95,
-            maxHeight: overlayViewport.height * 0.95,
-          },
+          fullscreenPdf ? styles.pdfStage : styles.card,
+          !fullscreenPdf && Platform.OS === 'web' && styles.cardWeb,
+          fullscreenPdf
+            ? null
+            : {
+                width: Math.min(overlayViewport.width * 0.98, 960),
+                height: overlayViewport.height * 0.95,
+                maxHeight: overlayViewport.height * 0.95,
+              },
         ]}
       >
-        <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
-          <Ionicons name="close" size={24} color="#636E72" />
-        </TouchableOpacity>
+        <View style={[styles.chrome, fullscreenPdf && styles.chromeFullscreen]} pointerEvents="box-none">
+          {file.imageUrl ? (
+            <TouchableOpacity
+              style={styles.chromeBtn}
+              onPress={() => void handleDownloadOriginal()}
+              disabled={downloadBusy}
+              accessibilityRole="button"
+              accessibilityLabel="Download"
+            >
+              {downloadBusy ? (
+                <ActivityIndicator size="small" color="#1A1A1A" />
+              ) : (
+                <Ionicons name="download-outline" size={22} color="#1A1A1A" />
+              )}
+            </TouchableOpacity>
+          ) : null}
+          <TouchableOpacity
+            style={styles.chromeBtn}
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+          >
+            <Ionicons name="close" size={22} color="#1A1A1A" />
+          </TouchableOpacity>
+        </View>
         <View style={styles.body}>
           <View
             nativeID={WEB_LEFT_NATIVE_ID}
             style={[
-              styles.left,
-              Platform.OS === 'web' && styles.leftWeb,
-              showRightPanel && Platform.OS === 'web' && styles.leftWithSidePanel,
-              !showRightPanel && styles.leftSolo,
+              fullscreenPdf ? styles.pdfLeft : styles.left,
+              !fullscreenPdf && Platform.OS === 'web' && styles.leftWeb,
+              !fullscreenPdf && showRightPanel && Platform.OS === 'web' && styles.leftWithSidePanel,
+              !fullscreenPdf && !showRightPanel && styles.leftSolo,
             ]}
           >
             {renderLeftPreview()}
           </View>
-          {showRightPanel && (
+          {!fullscreenPdf && showRightPanel && (
             <ScrollView
               style={[styles.right, Platform.OS === 'web' && styles.rightWeb]}
               contentContainerStyle={styles.rightContent}
@@ -784,7 +799,49 @@ const styles = StyleSheet.create({
   cardWeb: {
     overscrollBehavior: 'contain',
   } as any,
-  closeBtn: { position: 'absolute', top: 10, right: 10, zIndex: 2, padding: 6 },
+  pdfFill: {
+    flex: 1,
+    backgroundColor: '#525659',
+  },
+  pdfStage: {
+    flex: 1,
+    width: '100%',
+    backgroundColor: '#525659',
+    borderRadius: 0,
+  },
+  pdfLeft: {
+    flex: 1,
+    width: '100%',
+    backgroundColor: '#525659',
+    padding: 0,
+    minHeight: 0,
+  },
+  chrome: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    zIndex: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  chromeFullscreen: {
+    top: Platform.OS === 'ios' ? 50 : 40,
+    right: 16,
+  },
+  chromeBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.28,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 4,
+  },
   body: {
     flexDirection: Platform.OS === 'web' ? 'row' : 'column',
     flex: 1,

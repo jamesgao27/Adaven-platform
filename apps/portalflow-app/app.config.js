@@ -2,8 +2,8 @@ const fs = require("fs");
 const path = require("path");
 const pkg = require("./package.json");
 
-function applyLocalEnvFile() {
-  const envPath = path.join(__dirname, ".env");
+function applyLocalEnvFile(filename) {
+  const envPath = path.join(__dirname, filename);
   if (!fs.existsSync(envPath)) return;
   for (const raw of fs.readFileSync(envPath, "utf8").split(/\r?\n/)) {
     const line = raw.trim();
@@ -24,25 +24,32 @@ function applyLocalEnvFile() {
   }
 }
 
-applyLocalEnvFile();
+const isVouchap = process.env.APP_VARIANT === "vouchap";
+applyLocalEnvFile(isVouchap ? ".env.vouchap" : ".env");
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "";
-const appName = "Portalflow";
-const scheme = "portalflow";
-const bundleId = "com.portalflow.app";
-const associatedHost = "portalflow.app";
-const cameraPermission = `${appName} requires Camera and Photo Library access to upload client documents.`;
+const appName = isVouchap ? "Vouchap" : "Portalflow";
+const scheme = isVouchap ? "vouchap" : "portalflow";
+const bundleId = isVouchap ? "com.vouchap.app" : "com.portalflow.app";
+const associatedHost = isVouchap ? "vouchap.com" : "portalflow.app";
+const icon = isVouchap ? "./assets/vouchap-icon.png" : "./assets/logo2.png";
+const version = isVouchap ? "2.7.1" : pkg.version;
+const iosBuildNumber = isVouchap ? "56" : "1";
+const androidVersionCode = isVouchap ? 74 : 1;
+const cameraPermission = isVouchap
+  ? "Vouchap requires Camera and Photo Library access to scan and upload your receipts for digital tracking."
+  : `${appName} requires Camera and Photo Library access to upload client documents.`;
 
 export default {
   expo: {
     name: appName,
-    slug: "portalflow",
+    slug: isVouchap ? "vouchap" : "portalflow",
     jsEngine: "jsc",
-    version: pkg.version,
+    version,
     owner: "aimlink",
     orientation: "default",
-    icon: "./assets/logo2.png",
+    icon,
     scheme,
     userInterfaceStyle: "light",
     splash: {
@@ -53,12 +60,12 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: bundleId,
-      buildNumber: "1",
+      buildNumber: iosBuildNumber,
       associatedDomains: [`applinks:${associatedHost}`]
     },
     android: {
       package: bundleId,
-      versionCode: 1,
+      versionCode: androidVersionCode,
       permissions: [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
@@ -66,10 +73,16 @@ export default {
         "ACCESS_NETWORK_STATE",
         "INTERNET"
       ],
-      adaptiveIcon: {
-        foregroundImage: "./assets/logo2.png",
-        backgroundColor: "#ffffff"
-      },
+      adaptiveIcon: isVouchap
+        ? {
+            foregroundImage: "./assets/vouchap-foreground.png",
+            backgroundImage: "./assets/vouchap-background.png",
+            backgroundColor: "#C8AEF9"
+          }
+        : {
+            foregroundImage: "./assets/logo2.png",
+            backgroundColor: "#ffffff"
+          },
       intentFilters: [
         {
           action: "VIEW",
@@ -108,18 +121,19 @@ export default {
     ],
     web: {
       name: appName,
-      favicon: "./assets/favicon.png"
+      favicon: isVouchap ? "./assets/vouchap-icon.png" : "./assets/favicon.png"
     },
     ...(process.env.EXPO_PUBLIC_WEB_BASE_PATH
       ? { experiments: { baseUrl: process.env.EXPO_PUBLIC_WEB_BASE_PATH } }
       : {}),
     extra: {
+      appVariant: isVouchap ? "vouchap" : "portalflow",
       supabaseUrl,
       supabaseAnonKey,
-      showAiInventory:
-        process.env.NODE_ENV !== "production"
-          ? true
-          : process.env.EXPO_PUBLIC_SHOW_AI_INVENTORY === "true",
+      ...(isVouchap
+        ? { eas: { projectId: "f98c5cea-fd51-41e3-9c9c-1512c6b1a8e7" } }
+        : {}),
+      showAiInventory: false,
       showTaxFiling: true,
       geminiApiKey: "server-side-gemini-proxy",
       ...(process.env.EXPO_PUBLIC_AI_PROVIDER === "deepseek"

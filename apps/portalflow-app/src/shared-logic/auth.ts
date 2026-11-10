@@ -15,7 +15,7 @@ import {
 } from '@adaven/platform-core';
 import type { PlatformSpace } from '@adaven/platform-core';
 import './portalflow-space-bootstrap';
-import { isReceiptap } from './feature-flags';
+import { isVouchap } from './feature-flags';
 
 export {
   getCurrentUser,
@@ -53,7 +53,7 @@ async function enrichFirmStatus(space: PlatformSpace | null): Promise<Space | nu
 
 export async function getCurrentSpace(forceRefresh: boolean = false): Promise<Space | null> {
   let space = await enrichFirmStatus(await getPlatformCurrentSpace(forceRefresh));
-  if (isReceiptap && space?.kind === 'provider') {
+  if (isVouchap && space?.kind === 'provider') {
     const books = (await getUserSpaces()).filter((row) => row.space?.kind !== 'provider');
     if (!books[0]) return null;
     await setCurrentSpace(books[0].spaceId);
@@ -95,7 +95,7 @@ export async function getUserSpaces(): Promise<UserSpace[]> {
         }
       : undefined,
   }));
-  if (!isReceiptap) return mapped;
+  if (!isVouchap) return mapped;
   return mapped.filter((row) => row.space?.kind !== 'provider');
 }
 

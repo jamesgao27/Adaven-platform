@@ -477,17 +477,13 @@ export async function getEntityUsageCounts(): Promise<EntityUsageCounts> {
   const inboundCountByEntityId: Record<string, number> = {};
   const outboundCountByEntityId: Record<string, number> = {};
 
-  const [receipts, invoices, inbounds, outbounds] = await Promise.all([
+  const [receipts, invoices] = await Promise.all([
     supabase.from('receipts').select('entity_id').eq('space_id', spaceId).not('entity_id', 'is', null),
     supabase.from('invoices').select('entity_id').eq('space_id', spaceId).not('entity_id', 'is', null),
-    supabase.from('inbound').select('entity_id').eq('space_id', spaceId).not('entity_id', 'is', null),
-    supabase.from('outbound').select('entity_id').eq('space_id', spaceId).not('entity_id', 'is', null),
   ]);
 
   (receipts.data || []).forEach((r: any) => { if (r.entity_id) receiptCountByEntityId[r.entity_id] = (receiptCountByEntityId[r.entity_id] || 0) + 1; });
   (invoices.data || []).forEach((r: any) => { if (r.entity_id) invoiceCountByEntityId[r.entity_id] = (invoiceCountByEntityId[r.entity_id] || 0) + 1; });
-  (inbounds.data || []).forEach((r: any) => { if (r.entity_id) inboundCountByEntityId[r.entity_id] = (inboundCountByEntityId[r.entity_id] || 0) + 1; });
-  (outbounds.data || []).forEach((r: any) => { if (r.entity_id) outboundCountByEntityId[r.entity_id] = (outboundCountByEntityId[r.entity_id] || 0) + 1; });
 
   return { receiptCountByEntityId, invoiceCountByEntityId, inboundCountByEntityId, outboundCountByEntityId };
 }

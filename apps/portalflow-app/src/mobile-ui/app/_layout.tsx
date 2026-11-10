@@ -16,7 +16,7 @@ import { ChatPanelErrorBoundary } from '@/components/ChatPanelErrorBoundary';
 import { ChatPanelProvider, useChatPanel, type ChatPanelType } from '../contexts/ChatPanelContext';
 import { getWebStackHeaderLeftScreenOptions } from '../lib/web-stack-header-left';
 import { useWebViewportKind } from '../lib/web-viewport';
-import { isBookkeepingPath, isReceiptap } from '@/lib/feature-flags';
+import { isBookkeepingPath, isVouchap } from '@/lib/feature-flags';
 
 /** 基础数据设置页：这些页不显示 chat-to-log 气泡（已打开的右栏保留） */
 function isSettingsPage(pathname: string): boolean {
@@ -27,8 +27,6 @@ function isSettingsPage(pathname: string): boolean {
     'categories-manage',
     'purposes-manage',
     'attributions-manage',
-    'skus-manage',
-    'warehouse-manage',
     'management',
     'space-manage',
     'space-orders',
@@ -58,8 +56,6 @@ function chatTypeFromPathname(pathname: string | null): ChatPanelType | null {
   if (pathname === '/receipts' || pathname.startsWith('/receipts/') || pathname.startsWith('/receipt-details/')) return 'receipt';
   if (pathname === '/receipt-items' || pathname.startsWith('/receipt-items/')) return 'receipt';
   if (pathname === '/invoices' || pathname.startsWith('/invoices/') || pathname.startsWith('/invoice-details/')) return 'invoice';
-  if (pathname === '/inbound' || pathname.startsWith('/inbound/') || pathname.startsWith('/inbound-details/')) return 'inbound';
-  if (pathname === '/outbound' || pathname.startsWith('/outbound/') || pathname.startsWith('/outbound-details/')) return 'outbound';
   return null;
 }
 
@@ -130,8 +126,6 @@ function defaultChatOpen(pathname: string | null): boolean {
   // 费用、收入、库存列表页：默认打开右栏（Line items 除外：表格占宽，默认关闭右栏）
   if (pathname === '/receipts' || pathname.startsWith('/receipts/')) return true;
   if (pathname === '/invoices' || pathname.startsWith('/invoices/')) return true;
-  if (pathname === '/inbound' || pathname.startsWith('/inbound/')) return true;
-  if (pathname === '/outbound' || pathname.startsWith('/outbound/')) return true;
   // Clients 模块：默认打开右栏（Cody）
   if (pathname === '/firm/clients' || pathname.startsWith('/firm/clients/') || pathname.startsWith('/firm/client/')) return true;
   // 其他页面默认关闭
@@ -168,18 +162,18 @@ function LayoutContent() {
   }, []);
 
   useEffect(() => {
-    if (isReceiptap && !(Platform.OS === 'web' && showSidebar)) return;
+    if (isVouchap && !(Platform.OS === 'web' && showSidebar)) return;
     loadSpace();
   }, [loadSpace, showSidebar, pathname]);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
-    document.title = isReceiptap ? 'Receiptap' : 'Portalflow';
+    document.title = isVouchap ? 'Vouchap' : 'Portalflow';
   }, [pathname]);
 
   useEffect(() => {
     if (!pathname) return;
-    if (isReceiptap) {
+    if (isVouchap) {
       if (pathname.startsWith('/firm') || pathname.startsWith('/tax-filing') || pathname.startsWith('/portal')) {
         router.replace('/');
       }
@@ -274,7 +268,7 @@ textarea:focus-within {
   const chatDisabled =
     isDesktopWeb &&
     (isChatDisabledPath(pathname ?? '/') ||
-      (!isReceiptap &&
+      (!isVouchap &&
         currentSpace?.kind === 'consumer' &&
         !pathname?.startsWith('/tax-filing')));
 
@@ -305,13 +299,6 @@ textarea:focus-within {
             title: 'Line items',
             headerBackTitle: 'Expenses',
           }}
-        />
-        <Stack.Screen 
-          name="ai-inventory" 
-          options={{ 
-            title: 'AI Inventory',
-            headerBackTitle: 'Home'
-          }} 
         />
         <Stack.Screen 
           name="tax-filing/index" 
@@ -405,34 +392,6 @@ textarea:focus-within {
           }} 
         />
         <Stack.Screen 
-          name="inbound" 
-          options={{ 
-            title: 'Inbound lists',
-            headerBackTitle: 'Back'
-          }} 
-        />
-        <Stack.Screen 
-          name="outbound" 
-          options={{ 
-            title: 'Outbound lists',
-            headerBackTitle: 'Back'
-          }} 
-        />
-        <Stack.Screen 
-          name="skus-manage" 
-          options={{ 
-            title: 'SKU Management',
-            headerBackTitle: 'Back'
-          }} 
-        />
-        <Stack.Screen 
-          name="warehouse-manage" 
-          options={{ 
-            title: 'Warehouse Management',
-            headerBackTitle: 'Back'
-          }} 
-        />
-        <Stack.Screen 
           name="entities-manage" 
           options={{ 
             title: 'Entities',
@@ -450,18 +409,6 @@ textarea:focus-within {
           name="invoice-details/[id]" 
           options={{ 
             title: 'Income Details'
-          }} 
-        />
-        <Stack.Screen 
-          name="inbound-details/[id]" 
-          options={{ 
-            title: 'Inbound Details'
-          }} 
-        />
-        <Stack.Screen 
-          name="outbound-details/[id]" 
-          options={{ 
-            title: 'Outbound Details'
           }} 
         />
         <Stack.Screen 

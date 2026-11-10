@@ -19,7 +19,7 @@ import Svg, { Path, Rect, G, Circle, Text as SvgText } from 'react-native-svg';
 import WebDashboardView from '@/components/WebDashboardView';
 import CrmDashboardView from '@/components/CrmDashboardView';
 import { FirmPendingOverlay } from '@/components/FirmPendingOverlay';
-import { isReceiptap, showAiInventory, showTaxFiling } from '@/lib/feature-flags';
+import { isVouchap, showTaxFiling } from '@/lib/feature-flags';
 import ClientServicesHome from '@/components/ClientServicesHome';
 import { getFirmClientsListBundle } from '@/lib/firm';
 import { getPendingInviteesForEmail } from '@/lib/firm-clients';
@@ -28,9 +28,14 @@ import { CLIENT_DISPLAY_STATUS_LABELS } from '@/types';
 import { useWebViewportKind } from '../lib/web-viewport';
 import { fetchSpaceEntitlements } from '@/lib/space-entitlements';
 import { preflightRecognitionOrAlert } from '@/lib/recognition-preflight-ui';
+import { SpaceSwitcherModal } from '@adaven/platform-ui';
 
-/** 首页是否显示「AI 进销存」入口：由 app.config.js extra.showAiInventory 控制 */
-const SHOW_AI_INVENTORY_ENTRY = Constants.expoConfig?.extra?.showAiInventory !== false;
+/** Vouchap keeps personal bookkeeping spaces. Portalflow keeps firm spaces. */
+const accountSpaceKind = isVouchap ? 'consumer' : 'provider';
+
+function keepAccountSpaces<T extends { space?: { kind?: string } | null }>(rows: T[]): T[] {
+  return rows.filter((row) => row.space?.kind === accountSpaceKind);
+}
 
 const FIRM_CHART_COLORS = ['#6C5CE7', '#00B894', '#0984E3', '#FDCB6E', '#E17055'];
 const FIRM_ORDER_STATUS_LABELS: Record<string, string> = {
@@ -95,7 +100,7 @@ export default function HomeScreen() {
 
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const { isDesktopWeb, isMobileWeb } = useWebViewportKind();
-  const servicesClient = !isReceiptap && currentSpace != null && currentSpace.kind !== 'provider';
+  const servicesClient = !isVouchap && currentSpace != null && currentSpace.kind !== 'provider';
   const sloganFontSize = Math.min(32, Math.max(24, Math.round(screenWidth * 0.082)));
   const isCompact = screenHeight < 750 || screenWidth < 360;
   const mainCircleSize = isCompact ? 160 : 200;
@@ -234,7 +239,7 @@ export default function HomeScreen() {
     }
     
     console.log('Index: User spaces count:', spaces.length);
-    spaces = spaces.filter((row) => row.space?.kind === 'provider');
+    spaces = keepAccountSpaces(spaces);
     if (spaces.length > 0) {
       console.log('Index: User spaces:', spaces.map(s => ({
         spaceId: s.spaceId,
@@ -370,7 +375,7 @@ export default function HomeScreen() {
           router.replace('/setup-space');
           return;
         }
-        const spaces = (await getUserSpaces()).filter((row) => row.space?.kind === 'provider');
+        const spaces = keepAccountSpaces(await getUserSpaces());
         if (spaces.length === 0) {
           router.replace('/setup-space');
           return;
@@ -422,7 +427,7 @@ export default function HomeScreen() {
     const user = await getCurrentUser();
     if (!user) return;
 
-    const spaces = (await getUserSpaces()).filter((row) => row.space?.kind === 'provider');
+    const spaces = keepAccountSpaces(await getUserSpaces());
     const currentId = user.currentSpaceId || user.spaceId;
     if (currentId && spaces.some((row) => row.spaceId === currentId)) {
       return;
@@ -452,7 +457,7 @@ export default function HomeScreen() {
   const loadSpaces = async () => {
     try {
       const data = await getUserSpaces();
-      setSpaces(data.filter((row) => row.space?.kind === 'provider'));
+      setSpaces(keepAccountSpaces(data));
     } catch (error) {
       console.error('Error loading spaces:', error);
       showToast('Failed to load spaces', 'error');
@@ -462,11 +467,6 @@ export default function HomeScreen() {
   const handleSwitchSpace = async (spaceId: string) => {
     try {
       setSwitching(true);
-      const chosen = spaces.find((row) => row.spaceId === spaceId);
-      if (chosen?.space?.kind !== 'provider') {
-        setSwitching(false);
-        return;
-      }
       const { error } = await setCurrentSpace(spaceId);
       if (error) {
         showToast(error.message, 'error');
@@ -872,7 +872,7 @@ export default function HomeScreen() {
             <CrmDashboardView />
           ) : servicesClient ? (
             <ClientServicesHome />
-          ) : isReceiptap ? (
+          ) : isVouchap ? (
             <WebDashboardView />
           ) : null}
         </View>
@@ -965,9 +965,9 @@ export default function HomeScreen() {
           <CrmDashboardView />
         ) : servicesClient ? (
           <ClientServicesHome />
-        ) : isReceiptap && isMobileWeb ? (
+        ) : isVouchap && isMobileWeb ? (
           <WebDashboardView homeCompact />
-        ) : isReceiptap ? (
+        ) : isVouchap ? (
           <>
             <Text style={[styles.title, { fontSize: sloganFontSize, lineHeight: sloganLineHeight, marginBottom: sloganMarginBottom }]}>📸</Text>
             <Text
@@ -1035,7 +1035,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      ) : isReceiptap && currentSpace?.kind !== 'provider' ? (
+      ) : isVouchap && currentSpace?.kind !== 'provider' ? (
         <View style={styles.bottomNav}>
           <View style={styles.buttonsRow}>
             <TouchableOpacity
@@ -1069,93 +1069,21 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
           ) : null}
-          {SHOW_AI_INVENTORY_ENTRY && (
-            <View style={[styles.buttonsRow, { marginTop: 12 }]}>
-              <TouchableOpacity
-                style={[styles.secondaryButtonAlt, styles.halfWidthButton]}
-                onPress={() => router.push('/ai-inventory')}
-              >
-                <Ionicons name="cube-outline" size={20} color="#FF9500" style={styles.buttonIcon} />
-                <Text style={styles.secondaryButtonAltText}>AI Inventory</Text>
-              </TouchableOpacity>
-            </View>
-          )}
         </View>
       ) : null}
 
-      {/* Space Switch Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
+      <SpaceSwitcherModal
         visible={showSpaceSwitch}
-        onRequestClose={() => setShowSpaceSwitch(false)}
-      >
-        <TouchableOpacity
-          style={styles.pickerOverlay}
-          activeOpacity={1}
-          onPress={() => setShowSpaceSwitch(false)}
-        >
-          <View style={styles.pickerBottomSheet} onStartShouldSetResponder={() => true}>
-            <View style={styles.pickerHandle} />
-            <View style={[styles.pickerHeader, styles.pickerHeaderCenter]}>
-              <Text style={[styles.pickerTitle, switching && styles.pickerTitleHidden]}>Switch Space</Text>
-              {switching && (
-                <View style={styles.pickerHeaderSpinnerWrap}>
-                  <ActivityIndicator size="small" color="#6C5CE7" />
-                </View>
-              )}
-            </View>
-            <ScrollView style={styles.pickerScrollView} showsVerticalScrollIndicator={false}>
-              {spaces.map((userSpace) => (
-                <TouchableOpacity
-                  key={userSpace.spaceId}
-                  style={[
-                    styles.pickerOption,
-                    currentSpace?.id === userSpace.spaceId && styles.pickerOptionSelected
-                  ]}
-                  onPress={() => handleSwitchSpace(userSpace.spaceId)}
-                  disabled={switching || currentSpace?.id === userSpace.spaceId}
-                >
-                  <Ionicons 
-                    name="home" 
-                    size={20} 
-                    color={currentSpace?.id === userSpace.spaceId ? "#6C5CE7" : "#636E72"} 
-                  />
-                  <View style={styles.householdOptionContent}>
-                    <Text style={[
-                      styles.pickerOptionText,
-                      currentSpace?.id === userSpace.spaceId && styles.pickerOptionTextSelected
-                    ]}>
-                      {userSpace.space?.name || 'Unnamed Space'}
-                    </Text>
-                    {userSpace.space?.address && (
-                      <Text style={styles.householdOptionAddress} numberOfLines={1}>
-                        {userSpace.space.address}
-                      </Text>
-                    )}
-                  </View>
-                  {currentSpace?.id === userSpace.spaceId && (
-                    <Ionicons name="checkmark" size={20} color="#6C5CE7" />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-            <View style={styles.modalFooter}>
-              <TouchableOpacity
-                style={styles.createHouseholdButton}
-                onPress={() => {
-                  setShowSpaceSwitch(false);
-                  router.push('/setup-space');
-                }}
-                disabled={switching}
-              >
-                <Ionicons name="add-circle-outline" size={20} color="#6C5CE7" />
-                <Text style={styles.createHouseholdButtonText}>Create a New</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+        spaces={spaces}
+        currentSpaceId={currentSpace?.id}
+        switching={switching}
+        onClose={() => setShowSpaceSwitch(false)}
+        onSwitch={handleSwitchSpace}
+        onCreateNew={() => {
+          setShowSpaceSwitch(false);
+          router.push('/setup-space');
+        }}
+      />
 
       {/* Web only: switch space success – prompt to refresh */}
       <Modal
@@ -1664,13 +1592,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
-  pickerBottomSheet: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '80%',
-    paddingBottom: 20,
-  },
   refreshModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -1716,88 +1637,14 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 8,
   },
-  pickerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E9ECEF',
-  },
-  pickerHeaderCenter: {
-    justifyContent: 'center',
-  },
-  pickerTitleHidden: {
-    opacity: 0,
-  },
-  pickerHeaderSpinnerWrap: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   pickerTitle: {
     fontSize: 20,
     fontWeight: '600',
     color: '#2D3436',
   },
-  pickerScrollView: {
-    maxHeight: 500,
-  },
-  pickerOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-    gap: 12,
-  },
-  pickerOptionSelected: {
-    backgroundColor: '#E8F4FD',
-  },
-  pickerOptionText: {
-    flex: 1,
-    fontSize: 16,
-    color: '#2D3436',
-    fontWeight: '500',
-  },
-  pickerOptionTextSelected: {
-    color: '#6C5CE7',
-    fontWeight: '600',
-  },
-  householdOptionContent: {
-    flex: 1,
-  },
-  householdOptionAddress: {
-    fontSize: 14,
-    color: '#636E72',
-  },
   modalLoading: {
     padding: 20,
     alignItems: 'center',
-  },
-  modalFooter: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#E9ECEF',
-  },
-  createHouseholdButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F0F4FF',
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    gap: 8,
-  },
-  createHouseholdButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#6C5CE7',
   },
   createModalContent: {
     backgroundColor: '#fff',

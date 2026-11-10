@@ -2,7 +2,22 @@
  * Gemini generateContent inlineData does not support Office spreadsheet MIME types.
  * Convert xlsx/xls/csv to plain text and use text-only prompts instead.
  */
-import * as XLSX from 'xlsx';
+type XlsxModule = {
+  read: (data: unknown, opts: Record<string, unknown>) => {
+    SheetNames: string[];
+    Sheets: Record<string, unknown>;
+  };
+  utils: {
+    sheet_to_csv: (sheet: unknown) => string;
+  };
+};
+
+/** Load SheetJS only when a spreadsheet is parsed. The package entry executes code-page tables at import time and crashes the release binary on launch. */
+function loadXlsx(): XlsxModule {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const mod = require('xlsx/dist/xlsx.full.min.js') as XlsxModule & { default?: XlsxModule };
+  return mod.default ?? mod;
+}
 
 const MAX_CHARS = 800_000;
 
@@ -49,6 +64,7 @@ export function spreadsheetBase64ToPlainText(base64: string, mimeType: string, f
   if (looksCsv) {
     out = decodeBase64Utf8(base64);
   } else {
+    const XLSX = loadXlsx();
     const wb = XLSX.read(base64, { type: 'base64' });
     const parts: string[] = [];
     for (const name of wb.SheetNames) {

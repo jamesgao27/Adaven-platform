@@ -1,5 +1,5 @@
 /**
- * Portalflow client home. Bookkeeping stays on the Receiptap web app.
+ * Portalflow client home. Bookkeeping stays on the Vouchap web app.
  * Tax filing opens the existing history. Other services stay as placeholders
  * until those histories are designed.
  */

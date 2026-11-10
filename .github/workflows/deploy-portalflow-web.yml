@@ -1,4 +1,4 @@
-# Ships Pages project `portalflow` only. Never deploy to Pages `receiptap`.
+# Ships Pages project `portalflow` only. Never deploy to Pages `vouchap`.
 # Kernel-only commits do not run this job; use workflow_dispatch after a packages/*
 # change, or the CLI.
 name: Deploy Portalflow Web

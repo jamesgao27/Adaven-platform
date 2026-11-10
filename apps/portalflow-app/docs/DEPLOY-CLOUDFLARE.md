@@ -1,8 +1,8 @@
 # Cloudflare Pages — Portalflow Web
 
-Git SoT is **`jamesgao27/Adaven-platform`**. Pages project slug is **`portalflow`**. Do **not** deploy this app to Receiptap (`receiptap`) or the old Vouchap Pages project.
+Git SoT is **`jamesgao27/Adaven-platform`**. This file is the Portalflow web deploy. Pages project slug is **`portalflow`**. Do **not** deploy this command to Vouchap (`vouchap`).
 
-**Do not connect Git** on the Pages project. Push to `main` that touches `apps/portalflow-app/**` ships Portalflow web only (`portalflow.aim.link`). Receiptap bookkeeping web ships from `jamesgao27/Receiptap`. Kernel-only commits do not deploy. See **`docs/PUBLISH.md`**.
+**Do not connect Git** on the Pages project. Push to `main` that touches `apps/portalflow-app/**` ships Portalflow firm CRM only (`portalflow.aim.link`). Vouchap client web is `APP_VARIANT=vouchap` and a separate manual deploy. Kernel-only commits do not deploy. See **`docs/PUBLISH.md`**.
 
 Kernel screens come from `@adaven/platform-ui`.
 

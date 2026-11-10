@@ -12,6 +12,7 @@ import {
 } from '@adaven/platform-core';
 import { showToast } from '../lib/toast';
 import { confirmDestructive } from '../lib/alertWeb';
+import { getProductUi } from '../product';
 
 export default function PermissionsScreen() {
   const router = useRouter();
@@ -33,6 +34,10 @@ export default function PermissionsScreen() {
   }, [router]);
 
   useEffect(() => {
+    if (getProductUi().adminOnMembersList) {
+      router.replace('/space-members');
+      return;
+    }
     (async () => {
       try {
         await load();

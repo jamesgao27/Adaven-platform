@@ -2850,10 +2850,12 @@ function ChatToLogScreen(props: { voucherType?: VoucherLogType }) {
       />
       {attachmentDetailForModal ? (
         <Modal visible transparent animationType="fade" onRequestClose={() => { setSelectedAttachmentForModal(null); setAttachmentDetailForModal(null); }}>
+          <View style={{ flex: 1, backgroundColor: '#525659' }}>
           <FileDetailModal
             file={attachmentDetailForModal}
             onClose={() => { setSelectedAttachmentForModal(null); setAttachmentDetailForModal(null); }}
           />
+          </View>
         </Modal>
       ) : null}
       <FirmAddClientModal

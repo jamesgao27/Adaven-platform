@@ -1,14 +1,14 @@
 # Publish model — one kernel, independent ships
 
-**Source of truth for Portalflow / Wholestore / kernel is this repo:** `jamesgao27/Adaven-platform`.  
-`jamesgao27/Vouchap` is the **independent live Vouchap product** — iterate it only in that repo, with a full standalone codebase (no `@adaven/platform-*`). Do not deploy Adaven apps onto its Pages project or Supabase. Portalflow here mirrors Vouchap business and uses the platform space kernel.
+**Source of truth for Portalflow, Vouchap client, Wholestore, and the kernel is this repo:** `jamesgao27/Adaven-platform`.  
+Vouchap and Portalflow share `apps/portalflow-app` and the space / user / invite kernel. They do **not** share a database. Vouchap keeps Supabase `giuacjbfsyrristkigmz`. Portalflow keeps `xvqlqvtfogxkfeillvig`. Web deploys stay separate: Vouchap is client bookkeeping, Portalflow is firm CRM. Connecting the two client sides is a later snapshot, not a shared login.
 
 ## Release contract
 
 | Layer | Policy |
 |-------|--------|
 | Kernel (`packages/*`) | **One version for all apps.** npm workspaces always link current HEAD. Do not pin divergent `@adaven/*` versions per app. Do not publish private npm packages / Changesets for the kernel. |
-| Product ship | **Independent cadence.** Cloudflare Pages stays **Direct Upload** (never connect Git to project `portalflow`, `wholestore`, or frozen `vouchap`). GitHub Actions ships **one** app per matching path. A kernel-only push does **not** deploy either product. |
+| Product ship | **Independent cadence.** Cloudflare Pages stays **Direct Upload** (never connect Git to project `portalflow`, `wholestore`, or `vouchap`). Portalflow and Wholestore deploy on their path filters. Vouchap web is manual until its current database serves the shared kernel. A kernel-only push does **not** deploy a product. |
 | Native | EAS **per app**. Portalflow needs a **new** EAS project (do not reuse Vouchap `projectId`). |
 
 Kernel screens (login, register, setup space, **Management**, members, invites, space roles) are **imported from `@adaven/platform-ui`**, not copied. Members / Space roles are reached from Management; the web sidebar is product business pages only.
@@ -19,8 +19,8 @@ Adaven-platform (GitHub: jamesgao27/Adaven-platform)
 ├── apps/portalflow-app    → Pages **portalflow** · new EAS · Supabase xvqlqvtfogxkfeillvig
 └── apps/wholestore-app    → Pages **wholestore** · own EAS · Supabase foyecolycmxcneflpant
 
-Independent (other repo — full standalone app, no @adaven/*)
-└── jamesgao27/Receiptap   → Pages **receiptap** · EAS f98c5cea-… · giuacjbfsyrristkigmz
+Same app tree, second web (manual)
+└── APP_VARIANT=vouchap    → Pages **vouchap** · EAS f98c5cea-… · giuacjbfsyrristkigmz
 ```
 
 ## How Web actually ships
@@ -45,11 +45,11 @@ cd apps/portalflow-app && eas build --platform all --profile production
 
 `EXPO_PUBLIC_*` is baked in at `expo export` time. Local CLI reads the app `.env`. GitHub Actions reads repository secrets (not Cloudflare Dashboard build env, and not a Git-connected Pages build).
 
-Workflows: `.github/workflows/deploy-portalflow-web.yml`, `.github/workflows/deploy-wholestore-web.yml`. Shared job: `.github/workflows/deploy-web-reusable.yml`. Do **not** add `packages/**` to the path filters. Do **not** add a workflow that deploys Pages `receiptap`.
+Workflows: `.github/workflows/deploy-portalflow-web.yml`, `.github/workflows/deploy-wholestore-web.yml`, `.github/workflows/deploy-vouchap-web.yml` (manual). Shared job: `.github/workflows/deploy-web-reusable.yml`. Do **not** add `packages/**` to the path filters.
 
-Portalflow web is the firm workspace at `portalflow.aim.link`. It does not switch into a client space. Receiptap web ships from `jamesgao27/Receiptap` onto Pages **`receiptap`** (`receiptap.pages.dev`).
+Portalflow web is the firm workspace at `portalflow.aim.link`. It does not enter a client bookkeeping space. Vouchap web is `APP_VARIANT=vouchap` from this app, Pages **`vouchap`**, database `giuacjbfsyrristkigmz`.
 
-**Never** point Portalflow deploy at Pages `receiptap` or `vouchap`.
+**Never** point the Portalflow deploy at Pages `vouchap`.
 
 ## GitHub Actions secrets / variables
 
@@ -80,9 +80,19 @@ Create via Direct Upload / wrangler. **No Git.**
 | `wrangler.toml` `name` | `portalflow` |
 | Deploys | GitHub Action **Deploy Portalflow Web**, or `npm run portalflow:deploy:web` |
 
-### Receiptap web — project `receiptap`
+### Vouchap web — project `vouchap`
 
-Bookkeeping web ships from `jamesgao27/Receiptap` (`vouchap-app`) onto Pages **`receiptap`**. The default URL is `receiptap.pages.dev`. Direct Upload only. Do not connect Git.
+Client bookkeeping. Same app as Portalflow, `APP_VARIANT=vouchap`, Supabase `giuacjbfsyrristkigmz` (kernel `provider` / `consumer`). Direct Upload only. GitHub Action **Deploy Vouchap Web** is manual. Local: put that project URL in `apps/portalflow-app/.env.vouchap`, then `npm run vouchap:deploy:web`. Do not connect Git.
+
+Each product keeps its own release projects:
+
+| Product | Native | Web app | Marketing site |
+|---------|--------|---------|----------------|
+| Vouchap | Expo `f98c5cea-…`, store `com.vouchap.app` | Cloudflare Pages `vouchap` | Its own Vercel project when the marketing site is published there |
+| Portalflow | Expo project for `com.portalflow.app` | Cloudflare Pages `portalflow` | Its own Vercel project when the marketing site is published there |
+| Wholestore | Its Expo project | Cloudflare Pages `wholestore` | Its own Vercel project when the marketing site is published there |
+
+A push does not publish every host. Native goes through that product's Expo project, app web through that product's Cloudflare Pages project, and a marketing site through that product's Vercel project.
 
 ### Wholestore — project `wholestore`
 
@@ -109,7 +119,7 @@ Never reuse Vouchap (`giuacjbfsyrristkigmz`) or Portalflow keys here.
 |-----|---------------|----------|-----|
 | Portalflow | **`portalflow`** | `xvqlqvtfogxkfeillvig` | firm app / `com.portalflow.app` |
 | Wholestore | **`wholestore`** | `foyecolycmxcneflpant` | own app |
-| Receiptap (other repo) | **`receiptap`** | `giuacjbfsyrristkigmz` | existing project `f98c5cea-…` / new listing `com.receiptap.app` |
+| Vouchap client | **`vouchap`** | `giuacjbfsyrristkigmz` | existing project `f98c5cea-…` / store id `com.vouchap.app` |
 
 ## Kernel UI
 

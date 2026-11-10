@@ -11,8 +11,8 @@
 
 | What | Where |
 |---|---|
-| Vouchap **live** (independent) | Original repo `jamesgao27/Vouchap` + Supabase `giuacjbfsyrristkigmz` (`kind` = `firm`/`client`) + Pages `vouchap`. Full standalone app — **do not** depend on this repo or `@adaven/platform-*`. Do not migrate its users. |
-| **Portalflow** (new) | `apps/portalflow-app`. Business aligned with Vouchap. Kernel `provider`/`consumer`, UI Firm/Client. **New empty Supabase** + Pages **`portalflow`**. No Vouchap user import. |
+| Vouchap **client** | Developed in `apps/portalflow-app` with `APP_VARIANT=vouchap`. Database `giuacjbfsyrristkigmz` now uses kernel `provider`/`consumer` and schema `provider`. Pages `vouchap`. Expo `f98c5cea-…`, store id `com.vouchap.app`. Do not copy its users into Portalflow. Client records meet Portalflow later by snapshot, not by a shared login. |
+| **Portalflow** firm CRM | Same app tree, default variant. Kernel `provider`/`consumer`, UI Firm. Supabase `xvqlqvtfogxkfeillvig` + Pages **`portalflow`**. Web does not open client bookkeeping. |
 | Wholestore | `apps/wholestore-app` → Supabase `foyecolycmxcneflpant` |
 | **Adaven-CRM Hub** | Standalone repo `Adaven-CRM` (package `adaven-crm`) → Supabase **`glwacznypahmlpwottfz`**. Ops Auth only; not a product tenant. |
 | Platform kernel | `packages/*` (code only, not a tenant) |
@@ -40,7 +40,7 @@ Kernel stores **two** kinds. Apps only change **labels and overlay tables**, not
 - SQL / `platform-core` / RLS / RPCs use `provider` and `consumer` only.
 - `configureProductUi({ spaceKinds: [{ id: 'provider', label: 'Firm' }, …] })` is how a product shows its vocabulary.
 - Product overlay schemas use `provider.*` / `consumer.*` identifiers only. **Firm / Client / Vendor / Dealer are UI labels**, not SQL names. **`public.spaces.kind` is always kernel `provider`/`consumer`**. Portalflow still has extra overlay tables (SKU items, groups, permission roles, tax) that Wholestore does not.
-- Frozen original Vouchap still writes `firm`/`client` into **its** production DB. Portalflow never writes to that database.
+- Vouchap production `giuacjbfsyrristkigmz` uses the same kernel kinds and `provider` / `consumer` schemas. Portalflow still has its own database. Neither app writes to the other's project.
 
 **Wholestore** overlay SQL uses `provider`/`consumer` only (UI copy is Vendor / Dealer; some screens still say supplier/factory).
 
@@ -77,21 +77,25 @@ flowchart TD
 - `create_space_core`: `spaces` + `user_spaces` + `current_space_id`. `p_kind` is `provider` | `consumer`.
 - Portalflow product wrapper `create_space_with_user` calls core, then writes `provider.providers` / preset SKUs or `consumer.consumers` + Client CRM presets. `registerOnSpaceCreated` is the client-side fallback for the same seeds.
 - Wholestore overlay (`provider.providers` / `consumer.consumers`) lives in its own `create_space_core` replacement in `010_wholestore_provider_consumer.sql`.
-- Frozen original Vouchap keeps `create_space_with_user` + `firm`/`client` on `giuacjbfsyrristkigmz`.
+- Vouchap `giuacjbfsyrristkigmz` has `create_space_core` and `provider`/`consumer` kinds (`040_vouchap_align_provider_consumer.sql`).
 
-## Portalflow vs frozen Vouchap
+## Vouchap and Portalflow
 
-Portalflow is a **clean break**. Do **not** copy Vouchap `auth.users`, receipts, Firm CRM, or storage into the new project.
+Both products are developed in this repo. They do not share a database or a release project.
 
 ```text
-Keep running (untouched)
-  original repo + giuacjbfsyrristkigmz + kind firm|client
-  native (EAS) + Pages vouchap
+Vouchap client bookkeeping
+  apps/portalflow-app  APP_VARIANT=vouchap
+  Supabase giuacjbfsyrristkigmz  kind provider|consumer  schema provider
+  Expo f98c5cea-…   Cloudflare Pages vouchap
 
-New product (this repo)
-  apps/portalflow-app + kernel provider|consumer + UI Firm|Client
-  new empty Supabase + Pages portalflow + new EAS app
+Portalflow firm CRM
+  apps/portalflow-app  default variant
+  Supabase xvqlqvtfogxkfeillvig
+  its Expo project   Cloudflare Pages portalflow
 ```
+
+Do **not** copy Vouchap `auth.users` or receipts into the Portalflow project. A later snapshot links the client sides. Marketing sites, when published, use that product's own Vercel project.
 
 Stand-up:
 
@@ -120,7 +124,7 @@ Cross-product customer operations live in the standalone repo **`Adaven-CRM`** (
 ## Independent release
 
 1. Change platform packages on `main` — both apps see it in local/dev immediately. This is **not** a production update by itself (GitHub Actions path filters exclude `packages/**`).
-2. When Portalflow web should go live: push that touches `apps/portalflow-app/**` (Pages `portalflow` only), or Actions **Deploy Portalflow Web**, or `npm run portalflow:deploy:web`. Receiptap bookkeeping is not built here; it ships from `jamesgao27/Receiptap` onto Pages `receiptap`.
+2. When Portalflow web should go live: push that touches `apps/portalflow-app/**` (Pages `portalflow` only), or Actions **Deploy Portalflow Web**, or `npm run portalflow:deploy:web`. Vouchap bookkeeping web is the same tree with `APP_VARIANT=vouchap` and is started by hand (`Deploy Vouchap Web` or `npm run vouchap:deploy:web`).
 3. When Wholestore should go live: push that touches `apps/wholestore-app/**`, or Actions **Deploy Wholestore Web → Run workflow**, or `npm run wholestore:deploy:web` (and its EAS). The other product stays on the last Direct Upload / store binary.
 4. Run `db-platform` SQL on **Wholestore** only, when ready. Portalflow uses **its own** migration folder.
 5. Never connect Git on Pages `portalflow` or `wholestore`. Leave frozen Pages `vouchap` alone (still the original product).

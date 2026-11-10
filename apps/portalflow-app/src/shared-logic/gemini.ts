@@ -13,7 +13,6 @@ import { getWarehousesForOptions, getLocationsByWarehouseForOptions } from './wa
 import { getSkusForOptions } from './skus';
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
-import * as FileSystemNew from 'expo-file-system';
 import {
   GeminiReceiptResult,
   GeminiVoucherResult,

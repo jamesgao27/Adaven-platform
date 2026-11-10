@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
     height: 96,
     minWidth: 96,
     minHeight: 96,
-    borderRadius: '22%',
+    borderRadius: 21,
     overflow: 'hidden',
     alignSelf: 'center',
   },

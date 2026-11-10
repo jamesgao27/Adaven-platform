@@ -16,8 +16,16 @@ import { configureProductUi } from '@adaven/platform-ui';
 import { PortalflowSetupExtras } from './portalflow-setup-extras';
 import { getPortalflowSidebarNavItems } from './portalflow-sidebar-nav';
 import { getPortalflowManagementMenuItems } from './portalflow-management-menu';
-const nativeScheme = 'portalflow://';
-const publicOrigin = 'https://portalflow.aim.link';
+import { isVouchap } from './feature-flags';
+const nativeScheme = isVouchap ? 'vouchap://' : 'portalflow://';
+const publicOrigin = isVouchap ? 'https://vouchap.aim.link' : 'https://portalflow.aim.link';
+const productName = isVouchap ? 'Vouchap' : 'Portalflow';
+const productLogo = isVouchap
+  ? require('../../assets/vouchap-icon.png')
+  : require('../../assets/logo.png');
+const sidebarLogo = isVouchap
+  ? require('../../assets/vouchap-icon.png')
+  : require('../../assets/logo3.png');
 
 function readAuthProvidersFromExtra(): Partial<Record<AuthProviderId, AuthProviderConfig>> {
   const extra = (Constants.expoConfig?.extra ?? {}) as Record<string, unknown>;
@@ -73,22 +81,25 @@ registerOnSpaceCreated(async ({ spaceId, kind, clientProfileType }) => {
 });
 
 configureProductUi({
-  productName: 'Portalflow',
-  logo: require('../../assets/logo.png'),
-  sidebarLogo: require('../../assets/logo3.png'),
+  productName,
+  logo: productLogo,
+  sidebarLogo,
   getBrand: () => ({
-    productName: 'Portalflow',
-    logo: require('../../assets/logo.png') as number,
-    sidebarLogo: require('../../assets/logo3.png') as number,
+    productName,
+    logo: productLogo as number,
+    sidebarLogo: sidebarLogo as number,
   }),
-  sloganLine1: 'Client services,',
-  sloganLine2: 'in one firm workspace.',
+  sloganLine1: isVouchap ? 'Receipts and income,' : 'Client services,',
+  sloganLine2: isVouchap ? 'in one bookkeeping space.' : 'in one firm workspace.',
   termsUrl: `${publicOrigin}/terms`,
   privacyUrl: `${publicOrigin}/privacy`,
   homePath: '/',
-  spaceKinds: [{ id: 'provider', label: 'Firm' }],
-  defaultSpaceKind: 'provider',
-  allowedSpaceKinds: ['provider'],
+  spaceKinds: isVouchap
+    ? [{ id: 'consumer', label: 'Personal' }]
+    : [{ id: 'provider', label: 'Firm' }],
+  defaultSpaceKind: isVouchap ? 'consumer' : 'provider',
+  allowedSpaceKinds: isVouchap ? ['consumer'] : ['provider'],
+  adminOnMembersList: isVouchap,
   getSidebarNavItems: getPortalflowSidebarNavItems,
   getManagementMenuItems: (space) => getPortalflowManagementMenuItems(space?.kind as 'consumer' | 'provider' | undefined),
   uploadSpaceImage: async (fileUri, spaceId) => {
@@ -107,9 +118,12 @@ configureProductUi({
   sidebarClaimRoute: '/auth/claim',
   renderSetupExtras: (ctx) => PortalflowSetupExtras(ctx),
   canSubmitSetup: (kind, extras) =>
-    kind !== 'provider' || typeof extras.verificationFileUri === 'string',
+    isVouchap || kind !== 'provider' || typeof extras.verificationFileUri === 'string',
   createSpace: async ({ name, address, kind, extras }) => {
-    if (kind !== 'provider') {
+    if (isVouchap && kind !== 'consumer') {
+      return { error: new Error('Vouchap only creates personal bookkeeping spaces.') };
+    }
+    if (!isVouchap && kind !== 'provider') {
       return { error: new Error('Portalflow only creates firm workspaces.') };
     }
     const { createSpace } = await import('./auth');
