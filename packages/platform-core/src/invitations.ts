@@ -298,9 +298,10 @@ async function sendInvitationEmail(
         email,
         inviteUrl,
         invitationId,
-        spaceName,
+        spaceName: finalSpaceName,
         inviterName: finalInviterName,
         isExistingUser,
+        kind: 'space',
       },
     });
 

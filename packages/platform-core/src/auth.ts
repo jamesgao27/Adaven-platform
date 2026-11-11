@@ -758,7 +758,7 @@ export async function signIn(email: string, password: string): Promise<{ error: 
     if (error) {
       // 提供更友好的错误消息
       if (error.message?.includes('Email not confirmed') || error.message?.includes('email_not_confirmed')) {
-        throw new Error('Email not confirmed: Please check your email and click the confirmation link.\n\nIf in development environment, you can disable email confirmation in Supabase Dashboard.');
+        throw new Error('EMAIL_NOT_CONFIRMED');
       }
       throw error;
     }
@@ -916,5 +916,45 @@ export async function updatePassword(newPassword: string): Promise<{ error: Erro
     return {
       error: error instanceof Error ? error : new Error('更新密码失败'),
     };
+  }
+}
+
+export type EmailOtpType = 'signup' | 'recovery' | 'email_change';
+
+export async function verifyEmailOtp(
+  email: string,
+  token: string,
+  type: EmailOtpType,
+): Promise<{ error: Error | null }> {
+  try {
+    const config = validateConfig();
+    if (!config.valid) return { error: supabaseConfigError() };
+    const { error } = await supabase().auth.verifyOtp({
+      email: email.trim(),
+      token: token.trim(),
+      type,
+    });
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    return { error: error instanceof Error ? error : new Error('That code could not be verified.') };
+  }
+}
+
+export async function resendEmailOtp(
+  email: string,
+  type: 'signup' | 'email_change',
+): Promise<{ error: Error | null }> {
+  try {
+    const config = validateConfig();
+    if (!config.valid) return { error: supabaseConfigError() };
+    const { error } = await supabase().auth.resend({
+      type,
+      email: email.trim(),
+    });
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    return { error: error instanceof Error ? error : new Error('Could not resend the code.') };
   }
 }

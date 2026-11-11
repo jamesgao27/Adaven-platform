@@ -129,7 +129,7 @@ export default function WebSidebar() {
         <Image
           source={brand.sidebarLogo ?? brand.logo}
           style={styles.logoImage}
-          resizeMode="cover"
+          resizeMode="contain"
         />
         <Text style={styles.brandText}>{brand.productName}</Text>
       </View>
@@ -144,7 +144,7 @@ export default function WebSidebar() {
             <Image
               source={{ uri: currentSpace.logoUrl }}
               style={styles.spaceIconImage}
-              resizeMode="cover"
+              resizeMode="contain"
             />
           ) : (
             <View style={styles.sidebarLogoPlaceholderSquare}>
@@ -182,7 +182,7 @@ export default function WebSidebar() {
         >
           <View style={styles.userAvatar}>
             {user?.logoUrl ? (
-              <Image source={{ uri: user.logoUrl }} style={styles.userAvatarImage} resizeMode="cover" />
+              <Image source={{ uri: user.logoUrl }} style={styles.userAvatarImage} resizeMode="contain" />
             ) : (
               <View style={styles.sidebarLogoPlaceholderSquare}>
                 <Ionicons name="person-outline" size={24} color="#6C5CE7" />
@@ -254,13 +254,14 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   logoImage: {
-    width: 96,
-    height: 96,
-    minWidth: 96,
-    minHeight: 96,
-    borderRadius: 21,
+    width: 112,
+    height: 112,
+    minWidth: 112,
+    minHeight: 112,
+    borderRadius: 24,
     overflow: 'hidden',
     alignSelf: 'center',
+    backgroundColor: 'transparent',
   },
   brandText: {
     marginTop: 4,
@@ -294,7 +295,7 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 8,
-    backgroundColor: '#E9ECEF',
+    backgroundColor: '#F8F9FA',
   },
   sidebarLogoPlaceholderSquare: {
     width: 42,
@@ -359,6 +360,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: 8,
+    backgroundColor: '#F8F9FA',
   },
   pendingBadgesRow: {
     position: 'absolute',

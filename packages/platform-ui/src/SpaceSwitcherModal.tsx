@@ -9,6 +9,7 @@ import {
   Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { getProductUi } from './product';
 
 export type SwitcherSpace = {
   spaceId: string;
@@ -16,8 +17,15 @@ export type SwitcherSpace = {
     name?: string;
     address?: string;
     logoUrl?: string | null;
+    kind?: string;
   };
 };
+
+function spaceKindLabel(kind?: string): string | null {
+  if (!kind) return null;
+  const match = getProductUi().spaceKinds.find((option) => option.id === kind);
+  return match?.label ?? null;
+}
 
 type SpaceSwitcherModalProps = {
   visible: boolean;
@@ -54,6 +62,7 @@ export function SpaceSwitcherModal({
           <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
             {spaces.map((userSpace) => {
               const selected = currentSpaceId === userSpace.spaceId;
+              const kindLabel = spaceKindLabel(userSpace.space?.kind);
               return (
                 <TouchableOpacity
                   key={userSpace.spaceId}
@@ -64,8 +73,8 @@ export function SpaceSwitcherModal({
                   {userSpace.space?.logoUrl ? (
                     <Image
                       source={{ uri: userSpace.space.logoUrl }}
-                      style={[styles.logo, selected ? { backgroundColor: '#E8F4FD' } : null]}
-                      resizeMode="cover"
+                      style={[styles.logo, { backgroundColor: selected ? '#E8F4FD' : '#F8F9FA' }]}
+                      resizeMode="contain"
                     />
                   ) : (
                     <View
@@ -85,6 +94,7 @@ export function SpaceSwitcherModal({
                     <Text style={[styles.optionText, selected && styles.optionTextSelected]}>
                       {userSpace.space?.name || 'Unnamed Space'}
                     </Text>
+                    {kindLabel ? <Text style={styles.kind}>{kindLabel}</Text> : null}
                     {userSpace.space?.address ? (
                       <Text style={styles.address} numberOfLines={1}>
                         {userSpace.space.address}
@@ -172,6 +182,7 @@ const styles = StyleSheet.create({
   optionContent: { flex: 1 },
   optionText: { flex: 1, fontSize: 16, color: '#2D3436', fontWeight: '500' },
   optionTextSelected: { color: '#6C5CE7', fontWeight: '600' },
+  kind: { fontSize: 13, color: '#6C5CE7', marginTop: 2 },
   address: { fontSize: 14, color: '#636E72' },
   footer: {
     paddingHorizontal: 20,

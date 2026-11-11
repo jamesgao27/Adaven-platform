@@ -20,6 +20,8 @@ import { confirmDestructive } from '../lib/alertWeb';
 import { filterToAllowedSpaces, getProductUi, getManagementMenu } from '../product';
 import { SpaceSwitcherModal } from '../SpaceSwitcherModal';
 import { useWebViewportKind } from '../lib/web-viewport';
+import { uploadSpaceImage as uploadSpaceImageShared, uploadUserLogo as uploadUserLogoShared } from '../lib/logo-upload';
+import { fitLogoToSquareContain, LOGO_PAD_COLOR } from '../lib/logo-fit';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -55,6 +57,8 @@ export default function ManagementScreen() {
 
   const effectiveSpaceImageUri = spaceImageClear ? null : (spaceImageUri ?? space?.logoUrl ?? null);
   const effectiveUserLogoUri = userLogoClear ? null : (userLogoUri ?? user?.logoUrl ?? null);
+  const uploadSpaceImage = product.uploadSpaceImage ?? uploadSpaceImageShared;
+  const uploadUserLogo = product.uploadUserLogo ?? uploadUserLogoShared;
 
   const getPickedAssetSize = async (asset: ImagePicker.ImagePickerAsset): Promise<number | null> => {
     if (typeof asset.fileSize === 'number' && Number.isFinite(asset.fileSize)) {
@@ -108,40 +112,27 @@ export default function ManagementScreen() {
     originWidth?: number,
     originHeight?: number
   ): Promise<string | null> => {
-    let currentUri = uri;
-    // Web 端补齐裁切：按中心裁成正方形；移动端已有系统裁切，此处不重复裁切
-    if (Platform.OS === 'web' && originWidth && originHeight && originWidth > 0 && originHeight > 0) {
-      const cropSize = Math.min(originWidth, originHeight);
-      const cropX = Math.max(0, Math.floor((originWidth - cropSize) / 2));
-      const cropY = Math.max(0, Math.floor((originHeight - cropSize) / 2));
-      const cropped = await ImageManipulator.manipulateAsync(
-        currentUri,
-        [{ crop: { originX: cropX, originY: cropY, width: cropSize, height: cropSize } }],
-        { compress: 1, format: ImageManipulator.SaveFormat.JPEG }
-      );
-      currentUri = cropped.uri;
-    }
+    // Long-edge contain + UI pad (not short-edge crop / dark letterbox).
+    let currentUri = await fitLogoToSquareContain(uri, originWidth, originHeight, 1280);
 
     let currentSize = await getUriFileSize(currentUri);
     if (currentSize !== null && currentSize <= MAX_LOGO_FILE_SIZE) return currentUri;
 
     // 逐步降低质量并缩放，尽量压到 500KB 以下
-    let width = 1280;
-    let height = 1280;
+    let side = 1280;
     const qualitySteps = [0.82, 0.72, 0.62, 0.52, 0.42];
 
     for (let i = 0; i < qualitySteps.length; i++) {
       const manipulated = await ImageManipulator.manipulateAsync(
         currentUri,
-        [{ resize: { width, height } }],
+        [{ resize: { width: side, height: side } }],
         { compress: qualitySteps[i], format: ImageManipulator.SaveFormat.JPEG }
       );
       currentUri = manipulated.uri;
       currentSize = await getUriFileSize(currentUri);
       if (currentSize !== null && currentSize <= MAX_LOGO_FILE_SIZE) return currentUri;
 
-      width = Math.max(480, Math.round(width * 0.85));
-      height = Math.max(480, Math.round(height * 0.85));
+      side = Math.max(480, Math.round(side * 0.85));
     }
 
     return null;
@@ -273,12 +264,7 @@ export default function ManagementScreen() {
       if (spaceImageClear) {
         logoUrlUpdate = null;
       } else if (spaceImageUri) {
-        if (!product.uploadSpaceImage) {
-          showToast('Logo upload is not available', 'error');
-          setSaving(false);
-          return;
-        }
-        logoUrlUpdate = await product.uploadSpaceImage(spaceImageUri, spaceId);
+        logoUrlUpdate = await uploadSpaceImage(spaceImageUri, spaceId);
       }
 
       const { error } = await getPlatformClient()
@@ -347,7 +333,6 @@ export default function ManagementScreen() {
   };
 
   const pickSpaceImage = async () => {
-    if (!product.uploadSpaceImage) return;
     try {
       if (Platform.OS !== 'web') {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -359,9 +344,9 @@ export default function ManagementScreen() {
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
+        // Avoid system short-edge crop; we fit long-edge contain + UI pad ourselves.
+        allowsEditing: false,
+        quality: 0.9,
       });
 
       if (!result.canceled && result.assets?.[0]?.uri) {
@@ -391,7 +376,6 @@ export default function ManagementScreen() {
   };
 
   const pickUserLogo = async () => {
-    if (!product.uploadUserLogo) return;
     try {
       if (Platform.OS !== 'web') {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -403,9 +387,8 @@ export default function ManagementScreen() {
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
+        allowsEditing: false,
+        quality: 0.9,
       });
 
       if (!result.canceled && result.assets?.[0]?.uri) {
@@ -443,12 +426,7 @@ export default function ManagementScreen() {
       if (userLogoClear) {
         logoUrlUpdate = null;
       } else if (userLogoUri) {
-        if (!product.uploadUserLogo) {
-          showToast('Logo upload is not available', 'error');
-          setSavingPersonal(false);
-          return;
-        }
-        logoUrlUpdate = await product.uploadUserLogo(userLogoUri, user.id);
+        logoUrlUpdate = await uploadUserLogo(userLogoUri, user.id);
       }
 
       // 优先使用 RPC 函数绕过 RLS 限制
@@ -668,7 +646,7 @@ export default function ManagementScreen() {
                   <Image
                     source={{ uri: effectiveUserLogoUri }}
                     style={styles.userLogoHeaderImage}
-                    resizeMode="cover"
+                    resizeMode="contain"
                   />
                 ) : (
                   <View style={styles.logoPlaceholderWrap}>
@@ -802,7 +780,7 @@ export default function ManagementScreen() {
                   <Image
                     source={{ uri: effectiveSpaceImageUri }}
                     style={styles.spaceIconImage}
-                    resizeMode="cover"
+                    resizeMode="contain"
                   />
                 ) : (
                   <View style={styles.logoPlaceholderWrap}>
@@ -1177,13 +1155,13 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 12,
-    backgroundColor: '#E9ECEF',
+    backgroundColor: LOGO_PAD_COLOR,
   },
   userLogoHeaderImage: {
     width: 48,
     height: 48,
     borderRadius: 12,
-    backgroundColor: '#E9ECEF',
+    backgroundColor: LOGO_PAD_COLOR,
   },
   logoInteractiveWrap: {
     position: 'relative',
@@ -1254,7 +1232,7 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 6,
-    backgroundColor: '#E9ECEF',
+    backgroundColor: LOGO_PAD_COLOR,
   },
   spaceOptionPlaceholderSquare: {
     width: 20,

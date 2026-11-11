@@ -18,6 +18,8 @@ additional_redirect_urls = [
   "exp://localhost:8081/--/auth/confirm",
   "portalflow://**",
   "portalflow://auth/confirm",
+  "http://localhost:8081/**",
+  "http://localhost:8081/auth/confirm",
   "https://receiptap.pages.dev/**",
   "https://receiptap.pages.dev/auth/confirm",
   "https://receiptap.aim.link/**",
@@ -25,6 +27,21 @@ additional_redirect_urls = [
   "receiptap://**",
   "receiptap://auth/confirm"
 ]
+
+[auth.email]
+otp_length = 6
+
+[auth.email.template.confirmation]
+subject = "Confirm your email for Portalflow"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.email_change]
+subject = "Confirm your new Portalflow email"
+content_path = "./supabase/templates/email_change.html"
+
+[auth.email.template.recovery]
+subject = "Reset your Portalflow password"
+content_path = "./supabase/templates/recovery.html"
 
 # Gemini: require valid Supabase user JWT at gateway; function double-checks via auth.getUser().
 # Optional secret GEMINI_PROXY_ALLOWED_ORIGINS=comma-separated origins (else *). Redeploy: supabase functions deploy gemini-proxy
@@ -35,3 +52,7 @@ verify_jwt = true
 # Redeploy: supabase functions deploy send-invitation-email
 [functions.send-invitation-email]
 verify_jwt = true
+
+# Invite registration: invitation row is the auth gate (anonymous invitees).
+[functions.register-with-invitation]
+verify_jwt = false

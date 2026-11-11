@@ -15,8 +15,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { signIn } from '@adaven/platform-core';
+import { signIn, verifyEmailOtp, resendEmailOtp } from '@adaven/platform-core';
 import { showToast } from '../lib/toast';
+import { EmailCodeStep } from './EmailCodeStep';
 import { ThirdPartyAuthButtons } from '../ThirdPartyAuthButtons';
 import { getProductUi } from '../product';
 
@@ -34,10 +35,13 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [pendingConfirmEmail, setPendingConfirmEmail] = useState<string | null>(null);
   const passwordInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
-    if (params.email) setEmail(params.email);
+    const raw = params.email;
+    const emailParam = Array.isArray(raw) ? raw[0] : raw;
+    if (emailParam) setEmail(String(emailParam));
     checkExistingSession();
   }, [params]);
 
@@ -93,21 +97,9 @@ export default function LoginScreen() {
     } catch (_) {}
   };
 
-  const handleLogin = async () => {
-    if (!email.trim() || !password.trim()) {
-      showToast('Please enter email and password', 'error');
-      return;
-    }
-    setLoading(true);
-    const { error } = await signIn(email.trim(), password.trim());
-    setLoading(false);
-    if (error) {
-      showToast(error.message, 'error');
-      return;
-    }
+  const continueAfterAuth = async () => {
     try {
-      const { getCurrentUser, getCurrentSpace } = await import('@adaven/platform-core');
-      const { initializeAuthCache } = await import('@adaven/platform-core');
+      const { getCurrentUser, getCurrentSpace, initializeAuthCache } = await import('@adaven/platform-core');
       const u = await getCurrentUser(true);
       const s = u ? await getCurrentSpace(false) : null;
       await initializeAuthCache(u, s);
@@ -131,7 +123,6 @@ export default function LoginScreen() {
       router.replace(t ? { pathname: '/dealer-join', params: { token: t } } : '/dealer-join');
       return;
     }
-    // 顺序：inviteId / member 邀请 → firm 邀请 → 首页
     if ((params.inviteId ?? '').trim()) {
       router.replace('/handle-invitations');
       return;
@@ -143,8 +134,52 @@ export default function LoginScreen() {
         return;
       }
     } catch (_) {}
-        router.replace('/');
+    router.replace('/');
   };
+
+  const handleLogin = async () => {
+    if (!email.trim() || !password.trim()) {
+      showToast('Please enter email and password', 'error');
+      return;
+    }
+    setLoading(true);
+    const { error } = await signIn(email.trim(), password.trim());
+    setLoading(false);
+    if (error) {
+      if (error.message === 'EMAIL_NOT_CONFIRMED') {
+        const address = email.trim();
+        setPendingConfirmEmail(address);
+        const { error: resendError } = await resendEmailOtp(address, 'signup');
+        if (resendError) showToast(resendError.message, 'error');
+        return;
+      }
+      showToast(error.message, 'error');
+      return;
+    }
+    await continueAfterAuth();
+  };
+
+  if (pendingConfirmEmail) {
+    return (
+      <EmailCodeStep
+        email={pendingConfirmEmail}
+        title="Confirm your email"
+        message="Enter the 6-digit code we sent to"
+        submitLabel="Confirm and sign in"
+        autoSubmit
+        onBack={() => setPendingConfirmEmail(null)}
+        onResend={async () => {
+          const { error } = await resendEmailOtp(pendingConfirmEmail, 'signup');
+          if (error) throw error;
+        }}
+        onSubmit={async (code) => {
+          const { error } = await verifyEmailOtp(pendingConfirmEmail, code, 'signup');
+          if (error) throw error;
+          await continueAfterAuth();
+        }}
+      />
+    );
+  }
 
   if (Platform.OS !== 'web') {
     return (
@@ -164,7 +199,13 @@ export default function LoginScreen() {
               <View style={styles.logoRowMobile}>
                 <Image
                   source={product.logo}
-                  style={styles.logoImgMobile}
+                  style={[
+                    styles.logoImgMobile,
+                    {
+                      width: product.authLogoSize ?? 64,
+                      height: product.authLogoSize ?? 64,
+                    },
+                  ]}
                   resizeMode="contain"
                 />
                 <Text style={styles.brandNameMobile}>{product.productName}</Text>
@@ -311,7 +352,13 @@ export default function LoginScreen() {
             <View style={styles.logoRow}>
               <Image
                 source={product.logo}
-                style={styles.logoImg}
+                style={[
+                  styles.logoImg,
+                  {
+                    width: product.authLogoSize ?? 64,
+                    height: product.authLogoSize ?? 64,
+                  },
+                ]}
                 resizeMode="contain"
               />
               <Text style={styles.brandName}>{product.productName}</Text>
@@ -436,15 +483,15 @@ const styles = StyleSheet.create({
     paddingTop: 80,
     paddingBottom: 40,
   },
-  headerMobile: { alignItems: 'center', marginBottom: 40 },
+  headerMobile: { alignItems: 'center', marginBottom: 28 },
   logoRowMobile: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
-    marginBottom: 24,
+    gap: 10,
+    marginBottom: 16,
   },
-  logoImgMobile: { width: 64, height: 64, borderRadius: 14, overflow: 'hidden' },
+  logoImgMobile: { width: 64, height: 64, borderRadius: 16, overflow: 'hidden', backgroundColor: 'transparent' },
   brandNameMobile: {
     fontSize: 32,
     fontWeight: '800',
@@ -542,15 +589,15 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 40,
+    paddingVertical: 20,
     paddingHorizontal: 24,
   },
   card: {
     width: '100%',
     maxWidth: 440,
     backgroundColor: '#FFFFFF',
-    borderRadius: 32,
-    padding: 32,
+    borderRadius: 28,
+    padding: 24,
     borderWidth: 1,
     borderColor: '#E9ECEF',
     shadowColor: '#000',
@@ -561,32 +608,33 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: 28,
+    marginBottom: 14,
   },
   logoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
-    marginBottom: 20,
+    gap: 10,
+    marginBottom: 10,
   },
   logoImg: {
     width: 64,
     height: 64,
-    borderRadius: 14,
+    borderRadius: 16,
     overflow: 'hidden',
+    backgroundColor: 'transparent',
   },
   brandName: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '800',
     color: '#6C5CE7',
     letterSpacing: -0.5,
   },
   slogan: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '800',
     textAlign: 'center',
-    lineHeight: 32,
+    lineHeight: 28,
   },
   sloganLine1: {
     color: '#2D3436',
@@ -595,13 +643,13 @@ const styles = StyleSheet.create({
     color: '#6C5CE7',
   },
   form: {
-    gap: 24,
+    gap: 12,
   },
   inputGroup: {
-    gap: 8,
+    gap: 6,
   },
   label: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
     color: '#2D3436',
     marginLeft: 4,
@@ -612,20 +660,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8F9FA',
     borderWidth: 1,
     borderColor: '#E9ECEF',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    minHeight: 52,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    minHeight: 44,
   },
   inputIcon: {
-    marginRight: 12,
+    marginRight: 10,
   },
   input: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 15,
     color: '#2D3436',
     paddingVertical: 0,
-    minHeight: 24,
+    minHeight: 22,
     includeFontPadding: false,
     textAlignVertical: 'center',
     backgroundColor: '#F8F9FA',
@@ -635,34 +683,34 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   btnWrap: {
-    marginTop: 16,
-    borderRadius: 16,
+    marginTop: 8,
+    borderRadius: 14,
     overflow: 'hidden',
   },
   btnDisabled: {
     opacity: 0.7,
   },
   loginBtn: {
-    paddingVertical: 16,
+    paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 52,
+    minHeight: 44,
   },
   loginBtnText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
   },
   footer: {
-    marginTop: 28,
+    marginTop: 16,
     alignItems: 'center',
-    gap: 20,
+    gap: 12,
   },
   footerLink: {
-    paddingVertical: 4,
+    paddingVertical: 2,
   },
   footerLinkP: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#636E72',
   },
   footerLinkSpan: {

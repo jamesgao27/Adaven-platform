@@ -41,7 +41,10 @@ export {
   isAuthenticated,
   resetPassword,
   updatePassword,
+  verifyEmailOtp,
+  resendEmailOtp,
 } from './auth';
+export type { EmailOtpType } from './auth';
 
 export { createSpaceCore } from './spaces';
 
@@ -58,6 +61,8 @@ export {
   buildInviteUrl,
 } from './invitations';
 export type { SpaceInvitation } from './invitations';
+
+export { registerWithInvitation } from './invite-register';
 
 export {
   getSpaceMembers,

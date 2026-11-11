@@ -36,33 +36,36 @@ export function resolveRedirectTo(): string | undefined {
 }
 
 export async function signInWithOAuth(
-  provider: AuthProviderId
-): Promise<{ error: Error | null }> {
+  provider: AuthProviderId,
+  options?: { redirectTo?: string; skipBrowserRedirect?: boolean },
+): Promise<{ error: Error | null; url: string | null }> {
   const check = authConfig.validateConfig?.();
   if (check && !check.valid) {
-    return { error: new Error(check.error || 'App backend is not configured.') };
+    return { error: new Error(check.error || 'App backend is not configured.'), url: null };
   }
   if (authConfig.providers?.[provider]?.enabled !== true) {
-    return { error: new Error(`${provider} sign-in is not configured for this app.`) };
+    return { error: new Error(`${provider} sign-in is not configured for this app.`), url: null };
   }
   const supabaseProvider =
     (authConfig.providers?.[provider]?.supabaseProvider as AuthProviderId | undefined) ??
     provider;
   try {
     const supabase = getPlatformClient();
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: supabaseProvider as 'google' | 'apple' | 'azure',
       options: {
-        redirectTo: resolveRedirectTo(),
-        skipBrowserRedirect: false,
+        redirectTo: options?.redirectTo ?? resolveRedirectTo(),
+        skipBrowserRedirect: options?.skipBrowserRedirect === true,
+        queryParams: provider === 'google' ? { prompt: 'select_account' } : undefined,
       },
     });
     if (error) throw error;
-    return { error: null };
+    return { error: null, url: data?.url ?? null };
   } catch (error) {
     console.error('signInWithOAuth failed:', error);
     return {
       error: error instanceof Error ? error : new Error(`Failed to sign in with ${provider}`),
+      url: null,
     };
   }
 }

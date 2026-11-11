@@ -1,8 +1,12 @@
-// Sends invitation email using Supabase Auth (SMTP + templates).
-// Requires Authorization: Bearer <user JWT>. Verifies space_invitations row: inviter_id = caller, pending, invitee email match.
-// Body: email, inviteUrl, invitationId (optional if inviteUrl contains /invite/{uuid}), spaceName, inviterName, isExistingUser.
+// Shared invite mailer for Adaven product apps + Workmap.
+// Uses Supabase Auth SMTP + Invite template via inviteUserByEmail.
+// Requires Authorization: Bearer <user JWT>.
+// Body: email, inviteUrl, invitationId, inviterName, spaceName?, isExistingUser?,
+ //       kind?: 'space' | 'workspace' (default space).
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+type InviteKind = 'space' | 'workspace';
 
 function parseAllowedOrigins(): string[] | null {
   const raw = Deno.env.get('INVITE_EMAIL_ALLOWED_ORIGINS')?.trim();
@@ -38,7 +42,9 @@ function extractInvitationId(inviteUrl: unknown, bodyId: unknown): string | null
     if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t)) return t;
   }
   if (typeof inviteUrl !== 'string' || !inviteUrl.trim()) return null;
-  const m = inviteUrl.match(/\/invite\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+  const m = inviteUrl.match(
+    /\/invite\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i,
+  );
   return m?.[1] ?? null;
 }
 
@@ -63,7 +69,10 @@ async function requireUserId(req: Request): Promise<{ userId: string } | Respons
     global: { headers: { Authorization: authHeader } },
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const { data: { user }, error } = await supabase.auth.getUser();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
   if (error || !user?.id) {
     return jsonResponse(req, { success: false, error: 'Unauthorized' }, 401);
   }
@@ -94,7 +103,10 @@ Deno.serve(async (req) => {
       spaceName,
       inviterName,
       isExistingUser,
+      kind: rawKind,
     } = body ?? {};
+
+    const kind: InviteKind = rawKind === 'workspace' ? 'workspace' : 'space';
 
     if (typeof email !== 'string' || !email.trim()) {
       return jsonResponse(req, { success: false, error: 'email is required' }, 400);
@@ -115,41 +127,94 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    if (isExistingUser === true) {
-      return jsonResponse(req, { success: true, emailSent: false });
-    }
-
     const invitationId = extractInvitationId(inviteUrl, bodyInvitationId);
     if (!invitationId) {
-      return jsonResponse(req, { success: false, error: 'invitationId or inviteUrl with /invite/{id} is required' }, 400);
+      return jsonResponse(
+        req,
+        { success: false, error: 'invitationId or inviteUrl with /invite/{id} is required' },
+        400,
+      );
     }
 
-    const { data: row, error: rowErr } = await admin
-      .from('space_invitations')
-      .select('id, inviter_id, invitee_email, status')
-      .eq('id', invitationId)
-      .maybeSingle();
+    let inviterMatches = false;
+    let emailMatches = false;
+    let statusPending = false;
 
-    if (rowErr) {
-      console.error('space_invitations select failed:', rowErr.message);
-      return jsonResponse(req, { success: false, error: 'Invitation lookup failed' }, 500);
+    if (kind === 'workspace') {
+      const { data: row, error: rowErr } = await admin
+        .from('workspace_invitations')
+        .select('id, invited_by_user_id, invited_email, status')
+        .eq('id', invitationId)
+        .maybeSingle();
+      if (rowErr) {
+        console.error('workspace_invitations select failed:', rowErr.message);
+        return jsonResponse(req, { success: false, error: 'Invitation lookup failed' }, 500);
+      }
+      if (!row) {
+        return jsonResponse(req, { success: false, error: 'Invitation not found' }, 403);
+      }
+      inviterMatches = row.invited_by_user_id === auth.userId;
+      emailMatches = String(row.invited_email || '').toLowerCase().trim() === normalizedEmail;
+      statusPending = String(row.status) === 'pending';
+    } else {
+      const { data: row, error: rowErr } = await admin
+        .from('space_invitations')
+        .select('id, inviter_id, invitee_email, status')
+        .eq('id', invitationId)
+        .maybeSingle();
+      if (rowErr) {
+        console.error('space_invitations select failed:', rowErr.message);
+        return jsonResponse(req, { success: false, error: 'Invitation lookup failed' }, 500);
+      }
+      if (!row) {
+        return jsonResponse(req, { success: false, error: 'Invitation not found' }, 403);
+      }
+      inviterMatches = row.inviter_id === auth.userId;
+      emailMatches = String(row.invitee_email || '').toLowerCase().trim() === normalizedEmail;
+      statusPending = String(row.status) === 'pending';
     }
-    if (!row) {
-      return jsonResponse(req, { success: false, error: 'Invitation not found' }, 403);
-    }
-    if (row.inviter_id !== auth.userId) {
+
+    if (!inviterMatches) {
       return jsonResponse(req, { success: false, error: 'Forbidden' }, 403);
     }
-    if (String(row.status) !== 'pending') {
+    if (!statusPending) {
       return jsonResponse(req, { success: false, error: 'Invitation is not pending' }, 403);
     }
-    if (String(row.invitee_email || '').toLowerCase().trim() !== normalizedEmail) {
+    if (!emailMatches) {
       return jsonResponse(req, { success: false, error: 'Email does not match invitation' }, 403);
     }
 
     const space = spaceName || 'a space';
     const inviter = inviterName || 'Someone';
     const redirectTo = typeof inviteUrl === 'string' ? inviteUrl.trim() || undefined : undefined;
+
+    async function sendExistingUserInviteMail(): Promise<Response> {
+      // Already-registered accounts cannot use inviteUserByEmail. Send a magic link
+      // (Auth SMTP + Magic Link template) that lands on the invite deep link / login.
+      const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+      if (!anonKey) {
+        return jsonResponse(req, { success: true, emailSent: false, reason: 'existing_user' });
+      }
+      const anon = createClient(supabaseUrl!, anonKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const { error: otpErr } = await anon.auth.signInWithOtp({
+        email: normalizedEmail,
+        options: {
+          emailRedirectTo: redirectTo,
+          shouldCreateUser: false,
+        },
+      });
+      if (otpErr) {
+        console.error('signInWithOtp for existing invitee failed:', otpErr.message);
+        return jsonResponse(req, { success: true, emailSent: false, reason: 'existing_user' });
+      }
+      return jsonResponse(req, { success: true, emailSent: true, reason: 'existing_user_magic_link' });
+    }
+
+    if (isExistingUser === true) {
+      return await sendExistingUserInviteMail();
+    }
 
     const { error } = await admin.auth.admin.inviteUserByEmail(normalizedEmail, {
       redirectTo,
@@ -158,8 +223,11 @@ Deno.serve(async (req) => {
 
     if (error) {
       console.error('inviteUserByEmail failed:', error.message);
-      if (error.message?.toLowerCase().includes('already') || error.message?.toLowerCase().includes('registered')) {
-        return jsonResponse(req, { success: true, emailSent: false });
+      if (
+        error.message?.toLowerCase().includes('already') ||
+        error.message?.toLowerCase().includes('registered')
+      ) {
+        return await sendExistingUserInviteMail();
       }
       return jsonResponse(req, { success: false, error: error.message }, 400);
     }

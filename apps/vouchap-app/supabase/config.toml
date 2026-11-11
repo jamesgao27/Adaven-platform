@@ -1,0 +1,36 @@
+project_id = "giuacjbfsyrristkigmz"
+
+[auth]
+enabled = true
+site_url = "https://vouchap.aim.link"
+additional_redirect_urls = [
+  "https://vouchap.aim.link/**",
+  "https://vouchap.aim.link/auth/confirm",
+  "https://vouchap.pages.dev/**",
+  "https://vouchap.pages.dev/auth/confirm",
+  "http://localhost:8081/**",
+  "http://localhost:8081/auth/confirm",
+  "exp://localhost:8081/**",
+  "exp://localhost:8081/--/auth/confirm",
+  "vouchap://**",
+  "vouchap://auth/confirm"
+]
+
+[auth.email]
+otp_length = 6
+
+[auth.email.template.confirmation]
+subject = "Confirm your email for Vouchap"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.email_change]
+subject = "Confirm your new Vouchap email"
+content_path = "./supabase/templates/email_change.html"
+
+[auth.email.template.recovery]
+subject = "Reset your Vouchap password"
+content_path = "./supabase/templates/recovery.html"
+
+# Invite registration: invitation row is the auth gate (anonymous invitees).
+[functions.register-with-invitation]
+verify_jwt = false

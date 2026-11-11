@@ -9,7 +9,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Modal,
   Image,
   Linking,
 } from 'react-native';
@@ -17,10 +16,19 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { signUp, updatePassword, getCurrentUser } from '@adaven/platform-core';
+import {
+  signUp,
+  updatePassword,
+  getCurrentUser,
+  verifyEmailOtp,
+  resendEmailOtp,
+  registerWithInvitation,
+} from '@adaven/platform-core';
 import { getPlatformClient } from '@adaven/platform-core';
 import { showToast } from '../lib/toast';
 import { getProductUi } from '../product';
+import { ThirdPartyAuthButtons } from '../ThirdPartyAuthButtons';
+import { EmailCodeStep } from './EmailCodeStep';
 
 const isWeb = Platform.OS === 'web';
 
@@ -35,7 +43,10 @@ export default function RegisterScreen() {
     firmClientId?: string;
     fromInvite?: string;
   }>();
+  const inviteId = (params.inviteId ?? '').trim();
   const isFromInvite = params.fromInvite === '1' || params.fromInvite === 'true';
+  /** Invite deep link or post-confirm complete-profile — lock email and never ask for OTP again. */
+  const isInviteRegistration = isFromInvite || Boolean(inviteId);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -43,7 +54,7 @@ export default function RegisterScreen() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [showEmailConfirmationModal, setShowEmailConfirmationModal] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const [inviteReady, setInviteReady] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const emailInputRef = useRef<TextInput>(null);
@@ -56,6 +67,12 @@ export default function RegisterScreen() {
     }
   }, [params]);
 
+  // 邀请深链：邮箱锁定即可提交（无需 session）
+  useEffect(() => {
+    if (!inviteId || isFromInvite) return;
+    setInviteReady(Boolean((params.email || email || '').trim()));
+  }, [inviteId, isFromInvite, params.email, email]);
+
   // 邀请补全：已通过邮件验证，从 session 取邮箱并锁定
   useEffect(() => {
     if (!isFromInvite) return;
@@ -64,14 +81,17 @@ export default function RegisterScreen() {
       const user = await getCurrentUser();
       if (cancelled) return;
       if (!user) {
-        router.replace('/login');
+        router.replace({
+          pathname: '/login',
+          params: params.email ? { email: String(params.email) } : undefined,
+        } as never);
         return;
       }
       setEmail(user.email || '');
       setInviteReady(true);
     })();
     return () => { cancelled = true; };
-  }, [isFromInvite, router]);
+  }, [isFromInvite, router, params.email]);
 
   const handleRegister = async () => {
     if (!email.trim()) {
@@ -79,7 +99,7 @@ export default function RegisterScreen() {
       return;
     }
 
-    if (!isFromInvite && !agreedToTerms) {
+    if (!isInviteRegistration && !agreedToTerms) {
       showToast('Please agree to the Privacy Policy and Terms of Service', 'error');
       return;
     }
@@ -101,7 +121,10 @@ export default function RegisterScreen() {
         const user = await getCurrentUser();
         if (!user) {
           setLoading(false);
-          router.replace('/login');
+          router.replace({
+            pathname: '/login',
+            params: { email: email.trim() },
+          } as never);
           return;
         }
         const { error: pwdError } = await updatePassword(password.trim());
@@ -127,6 +150,41 @@ export default function RegisterScreen() {
         return;
       }
 
+      // 邀请深链注册：邀请即证明邮箱，服务端确认账号，不再走验证码
+      if (inviteId) {
+        const { user, error } = await registerWithInvitation({
+          email: email.trim(),
+          password: password.trim(),
+          invitationId: inviteId,
+          name: userName.trim() || undefined,
+          kind: 'space',
+        });
+        setLoading(false);
+        if (error) {
+          const msg = error.message || 'Could not complete registration';
+          if (msg.toLowerCase().includes('already') && msg.toLowerCase().includes('registered')) {
+            showToast('This email is already registered. Please sign in instead.', 'error');
+            router.replace({ pathname: '/login', params: { email: email.trim(), inviteId } } as never);
+            return;
+          }
+          showToast(msg, 'error');
+          return;
+        }
+        if (!user) {
+          showToast('Unknown error, please try again', 'error');
+          return;
+        }
+        showToast('Account ready. Welcome!', 'success');
+        const { getPendingInvitationsForUser, initializeAuthCache, getCurrentSpace } = await import(
+          '@adaven/platform-core'
+        );
+        const space = await getCurrentSpace(false);
+        await initializeAuthCache(user, space);
+        const invitations = await getPendingInvitationsForUser();
+        router.replace(invitations.length > 0 ? '/handle-invitations' : '/');
+        return;
+      }
+
       // 普通注册：创建用户并走邮箱验证
       const { user, error } = await signUp(email.trim(), password, undefined, userName.trim() || undefined);
       
@@ -138,7 +196,7 @@ export default function RegisterScreen() {
         
         if (errorMessage === 'EMAIL_CONFIRMATION_REQUIRED') {
           // 注册成功，但需要邮箱确认，不打印错误日志
-          setShowEmailConfirmationModal(true);
+          setPendingEmail(email.trim());
           return;
         }
         
@@ -195,69 +253,42 @@ export default function RegisterScreen() {
     }
   };
 
-  const modalBlock = (
-    <Modal
-      visible={showEmailConfirmationModal}
-      transparent={true}
-      animationType="fade"
-      onRequestClose={() => {
-        setShowEmailConfirmationModal(false);
-        {
+  if (pendingEmail) {
+    return (
+      <EmailCodeStep
+        email={pendingEmail}
+        title="Confirm your email"
+        message="Enter the 6-digit code we sent to"
+        submitLabel="Confirm email"
+        autoSubmit
+        onBack={() => setPendingEmail(null)}
+        onResend={async () => {
+          const { error } = await resendEmailOtp(pendingEmail, 'signup');
+          if (error) throw error;
+        }}
+        onSubmit={async (code) => {
+          const { error } = await verifyEmailOtp(pendingEmail, code, 'signup');
+          if (error) throw error;
+          const { initializeAuthCache, getCurrentSpace, getPendingInvitationsForUser } = await import('@adaven/platform-core');
+          const user = await getCurrentUser(true);
+          const space = user ? await getCurrentSpace(false) : null;
+          await initializeAuthCache(user, space);
           const t = (params.token ?? '').trim();
           const f = (params.firmClientId ?? '').trim();
+          if (params.redirect === '/dealer-join' && t) {
+            router.replace({ pathname: '/dealer-join', params: { token: t } });
+            return;
+          }
           if (params.redirect === '/auth/setup' && (t || f)) {
             router.replace({ pathname: '/auth/setup', params: t ? { token: t } : { firmClientId: f } });
-          } else {
-            const lp: Record<string, string> = {};
-            if (params.redirect) lp.redirect = params.redirect;
-            if (t) lp.token = t;
-            if (f) lp.firmClientId = f;
-            if ((params.inviteId ?? '').trim()) lp.inviteId = String(params.inviteId).trim();
-            if (email.trim()) lp.email = email.trim();
-            router.replace({ pathname: '/login', params: lp });
+            return;
           }
-        }
-      }}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalIconContainer}>
-            <View style={styles.modalIconCircle}>
-              <Ionicons name="mail" size={48} color="#6C5CE7" />
-            </View>
-          </View>
-          <Text style={styles.modalTitle}>Check Your Email</Text>
-          <Text style={styles.modalMessage}>
-            You're just one step away from getting organized on {product.productName}.
-          </Text>
-          <Text style={styles.modalSubMessage}>
-            Please check the email you received to verify your account.
-          </Text>
-          <TouchableOpacity
-            style={styles.modalButton}
-            onPress={() => {
-              setShowEmailConfirmationModal(false);
-              const t = (params.token ?? '').trim();
-              const f = (params.firmClientId ?? '').trim();
-              if (params.redirect === '/auth/setup' && (t || f)) {
-                router.replace({ pathname: '/auth/setup', params: t ? { token: t } : { firmClientId: f } });
-              } else {
-                const lp: Record<string, string> = {};
-                if (params.redirect) lp.redirect = params.redirect;
-                if (t) lp.token = t;
-                if (f) lp.firmClientId = f;
-                if ((params.inviteId ?? '').trim()) lp.inviteId = String(params.inviteId).trim();
-                if (email.trim()) lp.email = email.trim();
-                router.replace({ pathname: '/login', params: lp });
-              }
-            }}
-          >
-            <Text style={styles.modalButtonText}>Got it</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  );
+          const invitations = await getPendingInvitationsForUser();
+          router.replace(invitations.length > 0 ? '/handle-invitations' : '/');
+        }}
+      />
+    );
+  }
 
   if (isWeb) {
     return (
@@ -294,15 +325,46 @@ export default function RegisterScreen() {
             </TouchableOpacity>
             <View style={stylesWeb.header}>
               <View style={stylesWeb.logoRow}>
-                <Image source={product.logo} style={stylesWeb.logoImg} resizeMode="contain" />
+                <Image
+                  source={product.logo}
+                  style={[
+                    stylesWeb.logoImg,
+                    {
+                      width: product.authLogoSize ?? 64,
+                      height: product.authLogoSize ?? 64,
+                    },
+                  ]}
+                  resizeMode="contain"
+                />
                 <Text style={stylesWeb.brandName}>{product.productName}</Text>
               </View>
-              <Text style={stylesWeb.title}>{isFromInvite ? 'Complete your profile' : 'Create Account'}</Text>
+              <Text style={stylesWeb.title}>{isInviteRegistration ? 'Complete your profile' : 'Create Account'}</Text>
               <Text style={stylesWeb.subtitle}>
-                {isFromInvite ? 'Set your name and password to continue' : 'Start your receipt tracking journey'}
+                {isInviteRegistration ? 'Set your name and password to continue' : `${product.sloganLine1} ${product.sloganLine2}`}
               </Text>
             </View>
             <View style={stylesWeb.form}>
+              {!isInviteRegistration && (
+                <View style={stylesWeb.agreementRow}>
+                  <TouchableOpacity
+                    style={stylesWeb.checkboxWrap}
+                    onPress={() => setAgreedToTerms((v) => !v)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name={agreedToTerms ? 'checkbox' : 'square-outline'} size={22} color={agreedToTerms ? '#6C5CE7' : '#636E72'} />
+                  </TouchableOpacity>
+                  <View style={stylesWeb.agreementTextWrap}>
+                    <Text style={stylesWeb.agreementText}>I agree to the </Text>
+                    <TouchableOpacity onPress={() => Linking.openURL(product.privacyUrl)}>
+                      <Text style={stylesWeb.linkText}>Privacy Policy</Text>
+                    </TouchableOpacity>
+                    <Text style={stylesWeb.agreementText}> and </Text>
+                    <TouchableOpacity onPress={() => Linking.openURL(product.termsUrl)}>
+                      <Text style={stylesWeb.linkText}>Terms of Service</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
               <Text style={stylesWeb.label}>Your name</Text>
               <View style={stylesWeb.inputWrapper}>
                 <Ionicons name="person-outline" size={20} color="#636E72" style={stylesWeb.inputIcon} />
@@ -322,7 +384,7 @@ export default function RegisterScreen() {
                 <Ionicons name="mail-outline" size={20} color="#636E72" style={stylesWeb.inputIcon} />
                 <TextInput
                   ref={emailInputRef}
-                  style={[stylesWeb.input, isFromInvite && stylesWeb.inputReadOnly]}
+                  style={[stylesWeb.input, isInviteRegistration && stylesWeb.inputReadOnly]}
                   placeholder="name@example.com"
                   placeholderTextColor="#95A5A6"
                   value={email}
@@ -330,7 +392,7 @@ export default function RegisterScreen() {
                   autoCapitalize="none"
                   keyboardType="email-address"
                   autoComplete="username"
-                  editable={!loading && !isFromInvite}
+                  editable={!loading && !isInviteRegistration}
                 />
               </View>
               <Text style={stylesWeb.label}>Password</Text>
@@ -371,31 +433,10 @@ export default function RegisterScreen() {
                   <Ionicons name={showConfirmPassword ? 'eye-outline' : 'eye-off-outline'} size={20} color="#636E72" />
                 </TouchableOpacity>
               </View>
-              {!isFromInvite && (
-                <View style={stylesWeb.agreementRow}>
-                  <TouchableOpacity
-                    style={stylesWeb.checkboxWrap}
-                    onPress={() => setAgreedToTerms((v) => !v)}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name={agreedToTerms ? 'checkbox' : 'square-outline'} size={22} color={agreedToTerms ? '#6C5CE7' : '#636E72'} />
-                  </TouchableOpacity>
-                  <View style={stylesWeb.agreementTextWrap}>
-                    <Text style={stylesWeb.agreementText}>I agree to the </Text>
-                    <TouchableOpacity onPress={() => Linking.openURL(product.privacyUrl)}>
-                      <Text style={stylesWeb.linkText}>Privacy Policy</Text>
-                    </TouchableOpacity>
-                    <Text style={stylesWeb.agreementText}> and </Text>
-                    <TouchableOpacity onPress={() => Linking.openURL(product.termsUrl)}>
-                      <Text style={stylesWeb.linkText}>Terms of Service</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
               <TouchableOpacity
-                style={[stylesWeb.btnWrap, (loading || (isFromInvite && !inviteReady) || (!isFromInvite && !agreedToTerms)) && stylesWeb.btnDisabled]}
+                style={[stylesWeb.btnWrap, (loading || (isInviteRegistration && !inviteReady) || (!isInviteRegistration && !agreedToTerms)) && stylesWeb.btnDisabled]}
                 onPress={handleRegister}
-                disabled={loading || (isFromInvite && !inviteReady) || (!isFromInvite && !agreedToTerms)}
+                disabled={loading || (isInviteRegistration && !inviteReady) || (!isInviteRegistration && !agreedToTerms)}
                 activeOpacity={0.9}
               >
                 <LinearGradient
@@ -407,11 +448,22 @@ export default function RegisterScreen() {
                   {loading ? (
                     <ActivityIndicator color="#fff" />
                   ) : (
-                    <Text style={stylesWeb.mainBtnText}>{isFromInvite ? 'Continue' : 'Sign Up'}</Text>
+                    <Text style={stylesWeb.mainBtnText}>{isInviteRegistration ? 'Continue' : 'Sign Up'}</Text>
                   )}
                 </LinearGradient>
               </TouchableOpacity>
-              {!isFromInvite && (
+              {isInviteRegistration ? null : (
+                <ThirdPartyAuthButtons
+                  disabled={loading}
+                  requiresConsent
+                  hasConsent={agreedToTerms}
+                  onConsentRequired={() =>
+                    showToast('Please agree to the Privacy Policy and Terms of Service', 'error')
+                  }
+                  onError={(message) => showToast(message, 'error')}
+                />
+              )}
+              {!isInviteRegistration && (
                 <TouchableOpacity
                   style={stylesWeb.footerLink}
                   onPress={() =>
@@ -434,7 +486,6 @@ export default function RegisterScreen() {
             </View>
           </View>
         </ScrollView>
-        {modalBlock}
       </KeyboardAvoidingView>
     );
   }
@@ -462,13 +513,34 @@ export default function RegisterScreen() {
               <Ionicons name="people" size={60} color="#6C5CE7" />
             </View>
           </View>
-          <Text style={styles.title}>{isFromInvite ? 'Complete your profile' : 'Create Account'}</Text>
+          <Text style={styles.title}>{isInviteRegistration ? 'Complete your profile' : 'Create Account'}</Text>
           <Text style={styles.subtitle}>
-            {isFromInvite ? 'Set your name and password to continue' : 'Start your receipt tracking journey'}
+            {isInviteRegistration ? 'Set your name and password to continue' : `${product.sloganLine1} ${product.sloganLine2}`}
           </Text>
         </View>
 
         <View style={styles.form}>
+          {!isInviteRegistration && (
+            <View style={styles.agreementRow}>
+              <TouchableOpacity
+                style={styles.checkboxWrap}
+                onPress={() => setAgreedToTerms((v) => !v)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name={agreedToTerms ? 'checkbox' : 'square-outline'} size={22} color={agreedToTerms ? '#6C5CE7' : '#636E72'} />
+              </TouchableOpacity>
+              <View style={styles.agreementTextWrap}>
+                <Text style={styles.agreementText}>I agree to the </Text>
+                <TouchableOpacity onPress={() => Linking.openURL(product.privacyUrl)}>
+                  <Text style={styles.linkTextInline}>Privacy Policy</Text>
+                </TouchableOpacity>
+                <Text style={styles.agreementText}> and </Text>
+                <TouchableOpacity onPress={() => Linking.openURL(product.termsUrl)}>
+                  <Text style={styles.linkTextInline}>Terms of Service</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
           <View style={styles.inputContainer}>
             <Ionicons name="person-outline" size={20} color="#636E72" style={styles.inputIcon} />
             <TextInput
@@ -483,7 +555,7 @@ export default function RegisterScreen() {
               autoCorrect={false}
               returnKeyType="next"
               onSubmitEditing={() => {
-                if (!isFromInvite) emailInputRef.current?.focus();
+                if (!isInviteRegistration) emailInputRef.current?.focus();
                 else passwordInputRef.current?.focus();
               }}
               accessibilityLabel="Your name"
@@ -495,7 +567,7 @@ export default function RegisterScreen() {
             <Ionicons name="mail-outline" size={20} color="#636E72" style={styles.inputIcon} />
             <TextInput
               ref={emailInputRef}
-              style={[styles.input, isFromInvite && styles.inputReadOnly]}
+              style={[styles.input, isInviteRegistration && styles.inputReadOnly]}
               placeholder="Email *"
               placeholderTextColor="#95A5A6"
               value={email}
@@ -510,7 +582,7 @@ export default function RegisterScreen() {
                 passwordInputRef.current?.focus();
               }}
               accessibilityLabel="Email address"
-              editable={!loading && !isFromInvite}
+              editable={!loading && !isInviteRegistration}
             />
           </View>
 
@@ -584,41 +656,31 @@ export default function RegisterScreen() {
             </TouchableOpacity>
           </View>
 
-          {!isFromInvite && (
-            <View style={styles.agreementRow}>
-              <TouchableOpacity
-                style={styles.checkboxWrap}
-                onPress={() => setAgreedToTerms((v) => !v)}
-                activeOpacity={0.8}
-              >
-                <Ionicons name={agreedToTerms ? 'checkbox' : 'square-outline'} size={22} color={agreedToTerms ? '#6C5CE7' : '#636E72'} />
-              </TouchableOpacity>
-              <View style={styles.agreementTextWrap}>
-                <Text style={styles.agreementText}>I agree to the </Text>
-                <TouchableOpacity onPress={() => Linking.openURL(product.privacyUrl)}>
-                  <Text style={styles.linkTextInline}>Privacy Policy</Text>
-                </TouchableOpacity>
-                <Text style={styles.agreementText}> and </Text>
-                <TouchableOpacity onPress={() => Linking.openURL(product.termsUrl)}>
-                  <Text style={styles.linkTextInline}>Terms of Service</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-
           <TouchableOpacity
-            style={[styles.button, (loading || (isFromInvite && !inviteReady) || (!isFromInvite && !agreedToTerms)) && styles.buttonDisabled]}
+            style={[styles.button, (loading || (isInviteRegistration && !inviteReady) || (!isInviteRegistration && !agreedToTerms)) && styles.buttonDisabled]}
             onPress={handleRegister}
-            disabled={loading || (isFromInvite && !inviteReady) || (!isFromInvite && !agreedToTerms)}
+            disabled={loading || (isInviteRegistration && !inviteReady) || (!isInviteRegistration && !agreedToTerms)}
           >
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>{isFromInvite ? 'Continue' : 'Sign Up'}</Text>
+              <Text style={styles.buttonText}>{isInviteRegistration ? 'Continue' : 'Sign Up'}</Text>
             )}
           </TouchableOpacity>
 
-          {!isFromInvite && (
+          {isInviteRegistration ? null : (
+            <ThirdPartyAuthButtons
+              disabled={loading}
+              requiresConsent
+              hasConsent={agreedToTerms}
+              onConsentRequired={() =>
+                showToast('Please agree to the Privacy Policy and Terms of Service', 'error')
+              }
+              onError={(message) => showToast(message, 'error')}
+            />
+          )}
+
+          {!isInviteRegistration && (
             <TouchableOpacity
               style={styles.linkButton}
               onPress={() =>
@@ -640,7 +702,6 @@ export default function RegisterScreen() {
           )}
         </View>
       </ScrollView>
-      {modalBlock}
     </KeyboardAvoidingView>
   );
 }
@@ -652,33 +713,33 @@ const stylesWeb = StyleSheet.create({
   orb1: { width: '100%', height: '100%', borderRadius: 400 },
   orb2Wrap: { position: 'absolute', width: 600, height: 480, bottom: -80, right: -100, borderRadius: 300, overflow: 'hidden' },
   orb2: { width: '100%', height: '100%', borderRadius: 300 },
-  scrollContent: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40, paddingHorizontal: 24 },
-  card: { width: '100%', maxWidth: 440, backgroundColor: '#FFFFFF', borderRadius: 32, padding: 32, borderWidth: 1, borderColor: '#E9ECEF', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 4 },
-  backBtn: { position: 'absolute', left: 24, top: 24, zIndex: 1, padding: 4 },
-  header: { alignItems: 'center', marginBottom: 24 },
-  logoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 20 },
-  logoImg: { width: 64, height: 64, borderRadius: 14, overflow: 'hidden' },
-  brandName: { fontSize: 32, fontWeight: '800', color: '#6C5CE7', letterSpacing: -0.5 },
-  title: { fontSize: 24, fontWeight: '800', color: '#2D3436', marginBottom: 8 },
-  subtitle: { fontSize: 15, color: '#636E72', textAlign: 'center' },
-  form: { gap: 20 },
-  label: { fontSize: 14, fontWeight: '500', color: '#2D3436', marginLeft: 4 },
-  inputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8F9FA', borderWidth: 1, borderColor: '#E9ECEF', borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, minHeight: 52 },
-  inputIcon: { marginRight: 12 },
-  input: { flex: 1, fontSize: 16, color: '#2D3436', paddingVertical: 0, minHeight: 24, includeFontPadding: false, textAlignVertical: 'center', backgroundColor: '#F8F9FA', outlineStyle: 'none' },
+  scrollContent: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 20, paddingHorizontal: 24 },
+  card: { width: '100%', maxWidth: 440, backgroundColor: '#FFFFFF', borderRadius: 28, padding: 24, borderWidth: 1, borderColor: '#E9ECEF', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 4 },
+  backBtn: { position: 'absolute', left: 18, top: 18, zIndex: 1, padding: 4 },
+  header: { alignItems: 'center', marginBottom: 14 },
+  logoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 10 },
+  logoImg: { width: 64, height: 64, borderRadius: 16, overflow: 'hidden', backgroundColor: 'transparent' },
+  brandName: { fontSize: 28, fontWeight: '800', color: '#6C5CE7', letterSpacing: -0.5 },
+  title: { fontSize: 22, fontWeight: '800', color: '#2D3436', marginBottom: 4 },
+  subtitle: { fontSize: 14, color: '#636E72', textAlign: 'center' },
+  form: { gap: 10 },
+  label: { fontSize: 13, fontWeight: '500', color: '#2D3436', marginLeft: 4, marginBottom: -2 },
+  inputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8F9FA', borderWidth: 1, borderColor: '#E9ECEF', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, minHeight: 44 },
+  inputIcon: { marginRight: 10 },
+  input: { flex: 1, fontSize: 15, color: '#2D3436', paddingVertical: 0, minHeight: 22, includeFontPadding: false, textAlignVertical: 'center', backgroundColor: '#F8F9FA', outlineStyle: 'none' },
   inputReadOnly: { color: '#636E72', opacity: 0.9 },
   eyeIcon: { padding: 4 },
-  agreementRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4, marginBottom: 4 },
-  checkboxWrap: { marginRight: 10, padding: 2 },
-  agreementTextWrap: { flex: 1, flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center' },
-  agreementText: { fontSize: 13, color: '#636E72' },
-  linkText: { fontSize: 13, color: '#6C5CE7', fontWeight: '600', textDecorationLine: 'underline' },
-  btnWrap: { marginTop: 8, borderRadius: 16, overflow: 'hidden' },
+  agreementRow: { flexDirection: 'row', alignItems: 'center', marginTop: 0, marginBottom: 2 },
+  checkboxWrap: { marginRight: 8, padding: 2 },
+  agreementTextWrap: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
+  agreementText: { fontSize: 12, color: '#636E72' },
+  linkText: { fontSize: 12, color: '#6C5CE7', fontWeight: '600', textDecorationLine: 'underline' },
+  btnWrap: { marginTop: 4, borderRadius: 14, overflow: 'hidden' },
   btnDisabled: { opacity: 0.7 },
-  mainBtn: { paddingVertical: 16, alignItems: 'center', justifyContent: 'center', minHeight: 52 },
-  mainBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  footerLink: { alignItems: 'center', marginTop: 20 },
-  footerLinkP: { fontSize: 14, color: '#636E72' },
+  mainBtn: { paddingVertical: 12, alignItems: 'center', justifyContent: 'center', minHeight: 44 },
+  mainBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  footerLink: { alignItems: 'center', marginTop: 12 },
+  footerLinkP: { fontSize: 13, color: '#636E72' },
   footerLinkSpan: { color: '#6C5CE7', fontWeight: '600' },
 });
 

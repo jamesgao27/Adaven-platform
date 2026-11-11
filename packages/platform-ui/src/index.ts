@@ -18,6 +18,8 @@ export { default as ManagementScreen } from './screens/ManagementScreen';
 export { default as LoginScreen } from './screens/LoginScreen';
 export { default as RegisterScreen } from './screens/RegisterScreen';
 export { default as ResetPasswordScreen } from './screens/ResetPasswordScreen';
+export { default as EmailConfirmScreen } from './screens/EmailConfirmScreen';
+export { uploadSpaceImage, uploadUserLogo } from './lib/logo-upload';
 export { default as SetupSpaceScreen } from './screens/SetupSpaceScreen';
 export { default as SpaceMembersScreen } from './screens/SpaceMembersScreen';
 export { default as HandleInvitationsScreen } from './screens/HandleInvitationsScreen';

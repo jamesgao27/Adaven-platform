@@ -15,8 +15,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { resetPassword } from '@adaven/platform-core';
+import { resetPassword, verifyEmailOtp, updatePassword } from '@adaven/platform-core';
 import { showToast } from '../lib/toast';
+import { EmailCodeStep } from './EmailCodeStep';
 import { getProductUi } from '../product';
 
 const isWeb = Platform.OS === 'web';
@@ -27,6 +28,8 @@ export default function ResetPasswordScreen() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   const handleResetPassword = async () => {
     if (!email.trim()) {
@@ -51,92 +54,49 @@ export default function ResetPasswordScreen() {
     }
   };
 
-  // 发送成功后的提示与等待页
   if (emailSent) {
-    if (isWeb) {
-      return (
-        <KeyboardAvoidingView style={stylesWeb.container} behavior={undefined}>
-          <StatusBar style="dark" />
-          <View style={stylesWeb.bg}>
-            <View style={stylesWeb.orb1Wrap}>
-              <LinearGradient
-                colors={['rgba(108, 92, 231, 0.2)', 'rgba(108, 92, 231, 0.06)', 'transparent']}
-                locations={[0, 0.5, 1]}
-                start={{ x: 0.5, y: 0.5 }}
-                end={{ x: 1, y: 1 }}
-                style={stylesWeb.orb1}
-              />
-            </View>
-            <View style={stylesWeb.orb2Wrap}>
-              <LinearGradient
-                colors={['rgba(162, 155, 254, 0.15)', 'rgba(162, 155, 254, 0.04)', 'transparent']}
-                locations={[0, 0.5, 1]}
-                start={{ x: 0.5, y: 0.5 }}
-                end={{ x: 0, y: 0 }}
-                style={stylesWeb.orb2}
-              />
-            </View>
-          </View>
-          <ScrollView contentContainerStyle={stylesWeb.scrollContent} showsVerticalScrollIndicator={false}>
-            <View style={stylesWeb.card}>
-              <View style={stylesWeb.header}>
-                <View style={stylesWeb.logoRow}>
-                  <Image source={product.logo} style={stylesWeb.logoImg} resizeMode="contain" />
-                  <Text style={stylesWeb.brandName}>{product.productName}</Text>
-                </View>
-                <View style={stylesWeb.successIconWrap}>
-                  <Ionicons name="mail-open-outline" size={48} color="#6C5CE7" />
-                </View>
-                <Text style={stylesWeb.title}>Check your email</Text>
-                <Text style={stylesWeb.subtitle}>
-                  We've sent a password reset link to{'\n'}
-                  <Text style={stylesWeb.emailHighlight}>{email.trim()}</Text>
-                </Text>
-                <Text style={stylesWeb.hint}>Please check your inbox and follow the link to set a new password.</Text>
-              </View>
-              <TouchableOpacity
-                style={stylesWeb.btnWrap}
-                onPress={() => router.back()}
-                activeOpacity={0.9}
-              >
-                <LinearGradient
-                  colors={['#6C5CE7', '#A29BFE']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={stylesWeb.mainBtn}
-                >
-                  <Text style={stylesWeb.mainBtnText}>Back to Sign In</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      );
-    }
     return (
-      <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <StatusBar style="dark" />
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <View style={styles.content}>
-            <View style={styles.header}>
-              <View style={styles.iconContainer}>
-                <View style={[styles.circle, styles.successCircle]}>
-                  <Ionicons name="mail-open-outline" size={56} color="#6C5CE7" />
-                </View>
-              </View>
-              <Text style={styles.title}>Check your email</Text>
-              <Text style={styles.subtitle}>
-                We've sent a password reset link to{'\n'}
-                <Text style={styles.emailHighlight}>{email.trim()}</Text>
-              </Text>
-              <Text style={styles.hint}>Please check your inbox and follow the link to set a new password.</Text>
-            </View>
-            <TouchableOpacity style={styles.button} onPress={() => router.back()} activeOpacity={0.9}>
-              <Text style={styles.buttonText}>Back to Sign In</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+      <EmailCodeStep
+        email={email.trim()}
+        title="Reset your password"
+        message="Enter the 6-digit code we sent to"
+        submitLabel="Set new password"
+        onBack={() => setEmailSent(false)}
+        onResend={async () => {
+          const { error } = await resetPassword(email.trim());
+          if (error) throw error;
+        }}
+        onSubmit={async (code) => {
+          if (newPassword.length < 8) throw new Error('Use at least 8 characters.');
+          if (newPassword !== confirmPassword) throw new Error('Passwords do not match.');
+          const { error } = await verifyEmailOtp(email.trim(), code, 'recovery');
+          if (error) throw error;
+          const { error: passwordError } = await updatePassword(newPassword);
+          if (passwordError) throw passwordError;
+          router.replace('/');
+        }}
+      >
+        <TextInput
+          value={newPassword}
+          onChangeText={setNewPassword}
+          placeholder="New password"
+          placeholderTextColor="#95A5A6"
+          secureTextEntry
+          autoCapitalize="none"
+          textContentType="newPassword"
+          style={styles.codePassword}
+        />
+        <TextInput
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          placeholder="Confirm new password"
+          placeholderTextColor="#95A5A6"
+          secureTextEntry
+          autoCapitalize="none"
+          textContentType="newPassword"
+          style={styles.codePassword}
+        />
+      </EmailCodeStep>
     );
   }
 
@@ -179,7 +139,7 @@ export default function ResetPasswordScreen() {
                 <Text style={stylesWeb.brandName}>{product.productName}</Text>
               </View>
               <Text style={stylesWeb.title}>Reset Password</Text>
-              <Text style={stylesWeb.subtitle}>Enter your email and we'll send you a reset link</Text>
+              <Text style={stylesWeb.subtitle}>Enter your email and we will send a 6-digit code</Text>
             </View>
             <View style={stylesWeb.form}>
               <Text style={stylesWeb.label}>Email Address</Text>
@@ -212,7 +172,7 @@ export default function ResetPasswordScreen() {
                   {loading ? (
                     <ActivityIndicator color="#fff" />
                   ) : (
-                    <Text style={stylesWeb.mainBtnText}>Send Reset Link</Text>
+                    <Text style={stylesWeb.mainBtnText}>Send code</Text>
                   )}
                 </LinearGradient>
               </TouchableOpacity>
@@ -252,7 +212,7 @@ export default function ResetPasswordScreen() {
               </View>
             </View>
             <Text style={styles.title}>Reset Password</Text>
-            <Text style={styles.subtitle}>Enter your email address and we'll send you a password reset link</Text>
+            <Text style={styles.subtitle}>Enter your email and we will send a 6-digit code</Text>
           </View>
 
           <View style={styles.form}>
@@ -280,7 +240,7 @@ export default function ResetPasswordScreen() {
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.buttonText}>Send Reset Link</Text>
+                <Text style={styles.buttonText}>Send code</Text>
               )}
             </TouchableOpacity>
 
@@ -390,6 +350,17 @@ const stylesWeb = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
+  codePassword: {
+    marginTop: 12,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: '#2D3436',
+  },
   container: { flex: 1, backgroundColor: '#F8F9FA' },
   scrollContent: { flexGrow: 1 },
   content: { flex: 1, paddingHorizontal: 20, paddingTop: 60, paddingBottom: 40 },

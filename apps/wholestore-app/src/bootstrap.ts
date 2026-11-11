@@ -3,6 +3,7 @@ import { configureProductUi } from '@adaven/platform-ui';
 import { validateSupabaseConfig } from './supabase';
 
 configurePlatformAuth({
+  providers: { google: { enabled: true } },
   validateConfig: validateSupabaseConfig,
   inviteDeepLinkBase:
     typeof window !== 'undefined' && window.location?.origin
@@ -11,7 +12,7 @@ configurePlatformAuth({
   emailRedirectTo:
     typeof window !== 'undefined' && window.location?.origin
       ? `${window.location.origin}/auth/confirm`
-      : 'https://foyecolycmxcneflpant.supabase.co',
+      : 'https://wholestore.pages.dev/auth/confirm',
 });
 
 registerOnSpaceCreated(async () => {
@@ -21,6 +22,7 @@ registerOnSpaceCreated(async () => {
 configureProductUi({
   productName: 'Wholestore',
   logo: require('../assets/icon.png'),
+  authLogoSize: 88,
   sloganLine1: 'Wholesale clarity,',
   sloganLine2: 'from factory to dealer.',
   termsUrl: 'https://wholestore.app/terms',
@@ -31,6 +33,7 @@ configureProductUi({
     { id: 'provider', label: 'Factory (Provider)' },
   ],
   defaultSpaceKind: 'consumer',
+  allowAdditionalSpaces: true,
   getSidebarNavItems: (space) => {
     if (space?.kind === 'provider') {
       return [
