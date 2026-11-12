@@ -538,10 +538,20 @@ export default function HomeScreen() {
         setShowCreateModal(false);
         setNewSpaceName('');
         setNewSpaceAddress('');
+        const updatedUser = await getCurrentUser(true);
+        const updatedSpace = updatedUser ? await getCurrentSpace(true) : space;
+        await initializeAuthCache(updatedUser, updatedSpace);
         await loadSpaces();
-        await loadSpace();
         setShowSpaceSwitch(false);
         showToast('Space created successfully', 'success');
+        if (Platform.OS === 'web' && isDesktopWeb) {
+          setShowRefreshAfterSwitchModal(true);
+          return;
+        }
+        if (updatedSpace) {
+          setCurrentSpaceState(updatedSpace);
+        }
+        await loadSpace();
       }
     } catch (error) {
       console.error('Error creating space:', error);

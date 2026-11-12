@@ -9,7 +9,10 @@ export function PortalflowSetupExtras({ kind, extras, setExtras }: SetupExtrasCo
   if (kind === 'consumer') {
     return (
       <View style={styles.block}>
-        <Text style={styles.label}>Client profile</Text>
+        <Text style={styles.label}>
+          Space type
+          <Text style={styles.labelNote}> — sets the starter categories and accounts for this space</Text>
+        </Text>
         <View style={styles.row}>
           {(['household', 'business'] as const).map((id) => (
             <TouchableOpacity
@@ -63,8 +66,10 @@ export function PortalflowSetupExtras({ kind, extras, setExtras }: SetupExtrasCo
 }
 
 const styles = StyleSheet.create({
-  block: { marginTop: 4 },
-  label: { fontSize: 13, fontWeight: '600', color: '#636E72', marginBottom: 4 },
+  block: { marginTop: 0, gap: 8 },
+  // Match SetupSpaceScreen web field labels (Space Name / Address).
+  label: { fontSize: 14, fontWeight: '500', color: '#2D3436', marginLeft: 4 },
+  labelNote: { fontSize: 14, fontWeight: '400', color: '#95A5A6' },
   hint: { fontSize: 12, color: '#95A5A6', marginBottom: 8 },
   row: { flexDirection: 'row', gap: 12 },
   option: {

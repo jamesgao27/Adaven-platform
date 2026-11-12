@@ -1,7 +1,7 @@
 # Publish model — one kernel, independent ships
 
 **Source of truth for Portalflow, Vouchap client, Wholestore, and the kernel is this repo:** `jamesgao27/Adaven-platform`.  
-Vouchap and Portalflow share `apps/portalflow-app` and the space / user / invite kernel. They do **not** share a database. Vouchap keeps Supabase `giuacjbfsyrristkigmz`. Portalflow keeps `xvqlqvtfogxkfeillvig`. Web deploys stay separate: Vouchap is client bookkeeping, Portalflow is firm CRM. Connecting the two client sides is a later snapshot, not a shared login.
+Vouchap (`apps/vouchap-app`) and Portalflow (`apps/portalflow-app`) share `packages/product-app` screens plus the space / user / invite kernel. They do **not** share a database. Vouchap keeps Supabase `giuacjbfsyrristkigmz`. Portalflow keeps `xvqlqvtfogxkfeillvig`. Web deploys stay separate. Connecting the two client sides is a later snapshot, not a shared login.
 
 ## Release contract
 
@@ -11,16 +11,15 @@ Vouchap and Portalflow share `apps/portalflow-app` and the space / user / invite
 | Product ship | **Independent cadence.** Cloudflare Pages stays **Direct Upload** (never connect Git to project `portalflow`, `wholestore`, or `vouchap`). Portalflow and Wholestore deploy on their path filters. Vouchap web is manual until its current database serves the shared kernel. A kernel-only push does **not** deploy a product. |
 | Native | EAS **per app**. Portalflow needs a **new** EAS project (do not reuse Vouchap `projectId`). |
 
-Kernel screens (login, register, setup space, **Management**, members, invites, space roles) are **imported from `@adaven/platform-ui`**, not copied. Members / Space roles are reached from Management; the web sidebar is product business pages only.
+Kernel screens (login, register, setup space, **Management**, members, invites) are **imported from `@adaven/platform-ui`**, not copied. Members, including who is an admin, are reached from Management. The web sidebar is product business pages only.
 
 ```text
 Adaven-platform (GitHub: jamesgao27/Adaven-platform)
-├── packages/platform-core | platform-ui | db-platform   ← shared code (always HEAD)
-├── apps/portalflow-app    → Pages **portalflow** · new EAS · Supabase xvqlqvtfogxkfeillvig
-└── apps/wholestore-app    → Pages **wholestore** · own EAS · Supabase foyecolycmxcneflpant
-
-Same app tree, second web (manual)
-└── APP_VARIANT=vouchap    → Pages **vouchap** · EAS f98c5cea-… · giuacjbfsyrristkigmz
+├── packages/platform-core | platform-ui | db-platform   ← signup, space, invite
+├── packages/product-app                                 ← shared product screens
+├── apps/vouchap-app       → Pages **vouchap** · EAS f98c5cea-… · giuacjbfsyrristkigmz
+├── apps/portalflow-app    → Pages **portalflow** · Supabase xvqlqvtfogxkfeillvig
+└── apps/wholestore-app    → Pages **wholestore** · Supabase foyecolycmxcneflpant
 ```
 
 ## How Web actually ships
@@ -82,7 +81,7 @@ Create via Direct Upload / wrangler. **No Git.**
 
 ### Vouchap web — project `vouchap`
 
-Client bookkeeping. Same app as Portalflow, `APP_VARIANT=vouchap`, Supabase `giuacjbfsyrristkigmz` (kernel `provider` / `consumer`). Direct Upload only. GitHub Action **Deploy Vouchap Web** is manual. Local: put that project URL in `apps/portalflow-app/.env.vouchap`, then `npm run vouchap:deploy:web`. Do not connect Git.
+Client bookkeeping. App `apps/vouchap-app`, Supabase `giuacjbfsyrristkigmz`. Direct Upload only. GitHub Action **Deploy Vouchap Web** is manual. Local env is `apps/vouchap-app/.env`, then `npm run vouchap:deploy:web`. Do not connect Git.
 
 Each product keeps its own release projects:
 

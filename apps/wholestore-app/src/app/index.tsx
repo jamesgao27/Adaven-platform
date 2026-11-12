@@ -42,7 +42,7 @@ export default function IndexScreen() {
         router.replace(invitations.length > 0 ? '/handle-invitations' : '/setup-space');
         return;
       }
-      if (space.kind === 'consumer' && typeof window !== 'undefined') {
+      if (typeof window !== 'undefined') {
         const joinToken = sessionStorage.getItem('wholestore_dealer_join_token');
         if (joinToken) {
           router.replace({ pathname: '/dealer-join', params: { token: joinToken } });
@@ -93,7 +93,7 @@ export default function IndexScreen() {
         <StatusBar style="dark" />
         <Text style={styles.kicker}>Insights</Text>
         <Text style={styles.title}>{spaceName}</Text>
-        <Text style={styles.body}>Factory (Provider)</Text>
+        <Text style={styles.body}>Vendor</Text>
         <Text style={styles.hint}>Publish SKUs for dealers. Orders arrive when a dealer places them in your store.</Text>
         <View style={styles.grid}>
           {cards.map((card) => (
@@ -115,7 +115,7 @@ export default function IndexScreen() {
       <StatusBar style="dark" />
       <Text style={styles.kicker}>Dashboard</Text>
       <Text style={styles.title}>{spaceName}</Text>
-      <Text style={styles.body}>Dealer (Consumer)</Text>
+      <Text style={styles.body}>Dealer</Text>
       {pendingInvites.length > 0 ? (
         <View style={styles.pendingBox}>
           <Text style={styles.pendingTitle}>Supplier invites waiting for this space</Text>

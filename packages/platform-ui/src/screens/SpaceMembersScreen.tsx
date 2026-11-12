@@ -32,7 +32,6 @@ import {
 import { GradientText } from '../lib/GradientText';
 import { showToast } from '../lib/toast';
 import { confirmDestructive } from '../lib/alertWeb';
-import { getProductUi } from '../product';
 
 const adminShield = require('../../assets/admin-shield.png');
 
@@ -518,8 +517,6 @@ export default function SpaceMembersScreen() {
     );
   };
 
-  const adminOnMembersList = getProductUi().adminOnMembersList === true;
-
   const handleToggleAdmin = (member: SpaceMember) => {
     const nextAdmin = !member.isAdmin;
     confirmDestructive(
@@ -584,7 +581,7 @@ export default function SpaceMembersScreen() {
               {members.map((member, index) => {
                 const isCurrentUser = member.userId === currentUserId;
                 const isLast = index === members.length - 1;
-                const showShield = adminOnMembersList && (member.isAdmin || (isCurrentUserAdmin && !isCurrentUser));
+                const showShield = member.isAdmin || (isCurrentUserAdmin && !isCurrentUser);
                 const shieldControl = showShield ? (
                   <View style={styles.memberMarkSlot}>
                     {isCurrentUserAdmin && !isCurrentUser ? (
@@ -606,49 +603,24 @@ export default function SpaceMembersScreen() {
                         <Text style={styles.compactName}>{getDisplayName(member)}</Text>
                         <Text style={styles.compactEmail}>{member.email}</Text>
                       </View>
-                      {!adminOnMembersList ? (
-                        <View style={styles.compactBadges}>
-                          {isCurrentUser ? (
-                            <View style={styles.compactBadge}>
-                              <Text style={styles.compactBadgeText}>You</Text>
-                            </View>
-                          ) : null}
-                          {member.isAdmin ? (
-                            <View style={[styles.compactBadge, styles.adminBadgeCompact]}>
-                              <Text style={[styles.compactBadgeText, styles.adminBadgeTextCompact]}>Admin</Text>
-                            </View>
-                          ) : null}
+                    </View>
+                    <View style={styles.memberMarks}>
+                      {shieldControl}
+                      {isCurrentUser ? (
+                        <View style={styles.memberMarkSlot}>
+                          <View style={styles.compactBadge}>
+                            <Text style={styles.compactBadgeText}>You</Text>
+                          </View>
                         </View>
                       ) : null}
                     </View>
-                    {adminOnMembersList ? (
-                      <View style={styles.memberMarks}>
-                        {shieldControl}
-                        {isCurrentUser ? (
-                          <View style={styles.memberMarkSlot}>
-                            <View style={styles.compactBadge}>
-                              <Text style={styles.compactBadgeText}>You</Text>
-                            </View>
-                          </View>
-                        ) : null}
-                      </View>
-                    ) : null}
-                    {isCurrentUserAdmin && !isCurrentUser && (
-                      adminOnMembersList ? (
-                        <View style={styles.memberMarkSlot}>
-                          <TouchableOpacity onPress={() => handleRemoveMember(member)}>
-                            <Ionicons name="trash-outline" size={20} color="#E74C3C" />
-                          </TouchableOpacity>
-                        </View>
-                      ) : (
-                        <TouchableOpacity
-                          style={styles.compactRemoveButton}
-                          onPress={() => handleRemoveMember(member)}
-                        >
+                    {isCurrentUserAdmin && !isCurrentUser ? (
+                      <View style={styles.memberMarkSlot}>
+                        <TouchableOpacity onPress={() => handleRemoveMember(member)}>
                           <Ionicons name="trash-outline" size={20} color="#E74C3C" />
                         </TouchableOpacity>
-                      )
-                    )}
+                      </View>
+                    ) : null}
                   </View>
                 );
               })}

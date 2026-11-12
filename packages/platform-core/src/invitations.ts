@@ -654,24 +654,25 @@ export async function declineInvitation(invitationId: string): Promise<{ error: 
       return { error: new Error(declineRpcError.message) };
     }
 
-    // 验证邮箱是否匹配（使用 auth.users，避免查询 users 表触发 RLS 权限问题）
-    const userEmail = authUser.email?.toLowerCase();
-    if (!userEmail || userEmail !== invitation.inviteeEmail.toLowerCase()) {
+    // Fallback when RPC is not deployed yet: update by invitation id (invitee RLS + JWT email).
+    const userEmail = authUser.email?.toLowerCase().trim();
+    if (!userEmail || userEmail !== invitation.inviteeEmail.toLowerCase().trim()) {
       return { error: new Error('Email does not match invitation') };
     }
 
-    // 更新邀请状态为已拒绝（declined）
-    // 基于space_id + email更新记录，确保只更新正确的那条（即使有历史遗留的重复记录）
-    const normalizedEmail = userEmail.toLowerCase().trim();
-    const { error: updateError } = await getPlatformClient()
+    const { data: updatedRows, error: updateError } = await getPlatformClient()
       .from('space_invitations')
       .update({ status: 'declined' })
-      .eq('space_id', invitation.spaceId)
-      .ilike('invitee_email', normalizedEmail);  // 使用ilike进行不区分大小写的匹配
+      .eq('id', invitationId)
+      .eq('status', 'pending')
+      .select('id');
 
     if (updateError) {
       console.error('Error updating invitation status to declined:', updateError);
       throw updateError;
+    }
+    if (!updatedRows || updatedRows.length === 0) {
+      return { error: new Error('Failed to decline invitation. Please try again.') };
     }
 
     return { error: null };

@@ -229,6 +229,9 @@ async function ensureNativeImageUriIsJpegForStorage(
   if (fileUri.startsWith('blob:') || fileUri.startsWith('data:')) return fileUri;
   const mime = fileOpts?.mimeType?.trim();
   if (mime && !mime.toLowerCase().startsWith('image/')) return fileUri;
+  // Android DocumentScanner / camera already yield JPEG; ImageManipulator on content://
+  // breaks the previously working direct FileSystem.read upload path (iOS HEIC still needs this).
+  if (Platform.OS === 'android') return fileUri;
 
   const manipulated = await ImageManipulator.manipulateAsync(fileUri, [], {
     compress: 0.9,

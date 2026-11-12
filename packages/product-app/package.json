@@ -1,0 +1,6 @@
+{
+  "name": "@adaven/product-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared product screens for Vouchap and Portalflow. Signup, space membership, and invites stay in @adaven/platform-core and @adaven/platform-ui."
+}

@@ -397,6 +397,13 @@ export async function processImageForUpload(
     return imageUri;
   }
 
+  // Android DocumentScanner returns content://; prior working path uploaded that URI directly.
+  // getInfoAsync / ImageManipulator on content:// is what surfaces as "Failed to process expense".
+  if (Platform.OS === 'android' && imageUri.startsWith('content://')) {
+    console.log('[图片预处理] Android content://，跳过预处理（恢复此前直接上传）');
+    return imageUri;
+  }
+
   try {
     console.log('[图片预处理] 开始预处理图片:', imageUri);
 

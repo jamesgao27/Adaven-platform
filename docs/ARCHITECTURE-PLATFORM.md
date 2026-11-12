@@ -11,8 +11,8 @@
 
 | What | Where |
 |---|---|
-| Vouchap **client** | Developed in `apps/portalflow-app` with `APP_VARIANT=vouchap`. Database `giuacjbfsyrristkigmz` now uses kernel `provider`/`consumer` and schema `provider`. Pages `vouchap`. Expo `f98c5cea-…`, store id `com.vouchap.app`. Do not copy its users into Portalflow. Client records meet Portalflow later by snapshot, not by a shared login. |
-| **Portalflow** firm CRM | Same app tree, default variant. Kernel `provider`/`consumer`, UI Firm. Supabase `xvqlqvtfogxkfeillvig` + Pages **`portalflow`**. Web does not open client bookkeeping. |
+| Vouchap **client** | `apps/vouchap-app`. Own `.env`, EAS project `f98c5cea-…`, bundle `com.vouchap.app`, Pages `vouchap`, Supabase `giuacjbfsyrristkigmz`. Product screens come from `packages/product-app`. |
+| **Portalflow** firm CRM | `apps/portalflow-app`. Own `.env`, bundle `com.portalflow.app`, Pages `portalflow`, Supabase `xvqlqvtfogxkfeillvig`. Same `packages/product-app` screens, `extra.appVariant=portalflow`. |
 | Wholestore | `apps/wholestore-app` → Supabase `foyecolycmxcneflpant` |
 | **Adaven-CRM Hub** | Standalone repo `Adaven-CRM` (package `adaven-crm`) → Supabase **`glwacznypahmlpwottfz`**. Ops Auth only; not a product tenant. |
 | Platform kernel | `packages/*` (code only, not a tenant) |
@@ -23,9 +23,9 @@ Cloudflare Pages projects are **Direct Upload** (`wrangler pages deploy` from `a
 
 ## Information architecture
 
-- **Kernel UI**: login / register / reset-password / setup-space / handle-invitations / invite, plus **Management** (space info, personal info, switch space, sign out, Members, Space roles). Apps `export { ManagementScreen as default } from '@adaven/platform-ui'`.
-- **Web left sidebar**: chrome only (brand, current space → Management, user card → Management, invitation badge). **Every nav column is a product business page** (`getSidebarNavItems`). Do not put Team / Space roles in the rail.
-- Product extras on Management use `getManagementMenuItems` (Portalflow: Accounts, Firm Permissions, billing, …).
+- **Kernel UI**: login / register / reset-password / setup-space / handle-invitations / invite, plus **Management** (space info, personal info, switch space, sign out, Members). Admin and member changes are on the members list for every product. `/permissions` only redirects there. Apps `export { ManagementScreen as default } from '@adaven/platform-ui'`.
+- **Web left sidebar**: chrome only (brand, current space → Management, user card → Management, invitation badge). **Every nav column is a product business page** (`getSidebarNavItems`). Do not put Team or member admin in the rail.
+- Product extras on Management use `getManagementMenuItems` (Portalflow: Accounts, Firm Permissions, billing, …). Finer provider permissions stay on those product screens and extend this same admin/member membership. They do not fork the members list.
 - Shared list chrome (`DataTable`, `CenterModal`, `ProjectListCard` / `ProjectListRow`) lives in `platform-ui`. Wholestore Vendor maps Portalflow/Vouchap Firm: Dealers ← Clients, Orders ← Engagements (multi-SKU lines), Catalog ← Service Catalog (SKU without items).
 
 ## Space kinds (kernel vs product)
@@ -42,20 +42,21 @@ Kernel stores **two** kinds. Apps only change **labels and overlay tables**, not
 - Product overlay schemas use `provider.*` / `consumer.*` identifiers only. **Firm / Client / Vendor / Dealer are UI labels**, not SQL names. **`public.spaces.kind` is always kernel `provider`/`consumer`**. Portalflow still has extra overlay tables (SKU items, groups, permission roles, tax) that Wholestore does not.
 - Vouchap production `giuacjbfsyrristkigmz` uses the same kernel kinds and `provider` / `consumer` schemas. Portalflow still has its own database. Neither app writes to the other's project.
 
-**Wholestore** overlay SQL uses `provider`/`consumer` only (UI copy is Vendor / Dealer; some screens still say supplier/factory).
+**Wholestore** overlay SQL uses `provider`/`consumer` only (UI copy is Vendor / Dealer; some screens still say supplier/factory). One user may belong to both kinds at once and switches between those spaces in Management. The two kinds are not separate accounts. Portalflow and Vouchap still limit the switcher with `allowedSpaceKinds`.
 
 ## Layout
 
 ```text
 Adaven-platform/
   packages/
-    platform-core/
-    platform-ui/
+    platform-core/     signup, space, membership, invite
+    platform-ui/       login, register, members, setup space
+    product-app/       shared Vouchap and Portalflow screens
     db-platform/
   apps/
-    portalflow-app/
+    vouchap-app/       client bookkeeping ship project
+    portalflow-app/    firm CRM ship project
     wholestore-app/
-  docs/ARCHITECTURE-PLATFORM.md
 ```
 
 Apps depend on `@adaven/platform-core` and `@adaven/platform-ui`. npm workspaces **always link the local packages on HEAD**. Do not fork kernel versions per app; independence is **when** each product is exported and uploaded, not which kernel commit it develops against.
@@ -85,14 +86,14 @@ Both products are developed in this repo. They do not share a database or a rele
 
 ```text
 Vouchap client bookkeeping
-  apps/portalflow-app  APP_VARIANT=vouchap
-  Supabase giuacjbfsyrristkigmz  kind provider|consumer  schema provider
+  apps/vouchap-app
+  Supabase giuacjbfsyrristkigmz
   Expo f98c5cea-…   Cloudflare Pages vouchap
 
 Portalflow firm CRM
-  apps/portalflow-app  default variant
+  apps/portalflow-app
   Supabase xvqlqvtfogxkfeillvig
-  its Expo project   Cloudflare Pages portalflow
+  Cloudflare Pages portalflow
 ```
 
 Do **not** copy Vouchap `auth.users` or receipts into the Portalflow project. A later snapshot links the client sides. Marketing sites, when published, use that product's own Vercel project.

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { getCurrentSpace, isAuthenticated } from '@adaven/platform-core';
+import { getCurrentSpace, getUserSpaces, isAuthenticated, setCurrentSpace } from '@adaven/platform-core';
 import { showToast } from '@adaven/platform-ui';
 import { acceptDealerInvite, getDealerInviteInfo, type DealerInviteInfo } from '@/lib/dealer-invites';
 
@@ -36,9 +36,18 @@ export default function DealerJoinScreen() {
         return;
       }
       if (space.kind !== 'consumer') {
-        setError('Open this invite while signed in to a Dealer space.');
-        setLoading(false);
-        return;
+        const dealerSpaces = (await getUserSpaces()).filter((row) => row.space?.kind === 'consumer');
+        if (dealerSpaces.length === 0) {
+          setError('This invite needs a Dealer space. Create one from Switch Space, then open the link again.');
+          setLoading(false);
+          return;
+        }
+        const { error: switchError } = await setCurrentSpace(dealerSpaces[0].spaceId);
+        if (switchError) {
+          setError(switchError.message);
+          setLoading(false);
+          return;
+        }
       }
       const { info: row, error: err } = await getDealerInviteInfo(t);
       if (err) setError(err.message);

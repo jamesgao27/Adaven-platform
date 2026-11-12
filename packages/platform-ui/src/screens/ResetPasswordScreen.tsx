@@ -135,7 +135,17 @@ export default function ResetPasswordScreen() {
             </TouchableOpacity>
             <View style={stylesWeb.header}>
               <View style={stylesWeb.logoRow}>
-                <Image source={product.logo} style={stylesWeb.logoImg} resizeMode="contain" />
+                <Image
+                  source={product.logo}
+                  style={[
+                    stylesWeb.logoImg,
+                    {
+                      width: product.authLogoSize ?? 64,
+                      height: product.authLogoSize ?? 64,
+                    },
+                  ]}
+                  resizeMode="contain"
+                />
                 <Text style={stylesWeb.brandName}>{product.productName}</Text>
               </View>
               <Text style={stylesWeb.title}>Reset Password</Text>
@@ -308,7 +318,7 @@ const stylesWeb = StyleSheet.create({
   backBtn: { position: 'absolute', left: 24, top: 24, zIndex: 1, padding: 4 },
   header: { alignItems: 'center', marginBottom: 28 },
   logoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 20 },
-  logoImg: { width: 64, height: 64, borderRadius: 14, overflow: 'hidden' },
+  logoImg: { width: 64, height: 64, borderRadius: 16, overflow: 'hidden', backgroundColor: 'transparent' },
   brandName: { fontSize: 32, fontWeight: '800', color: '#6C5CE7', letterSpacing: -0.5 },
   title: { fontSize: 24, fontWeight: '800', color: '#2D3436', marginBottom: 8 },
   subtitle: { fontSize: 15, color: '#636E72', textAlign: 'center' },

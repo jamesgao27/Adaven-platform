@@ -591,10 +591,14 @@ export default function ManagementScreen() {
       setShowCreateModal(false);
       setNewSpaceName('');
       setNewSpaceAddress('');
+      const updatedUser = await getCurrentUser(true);
+      const updatedSpace = updatedUser ? await getCurrentSpace(true) : null;
+      await initializeAuthCache(updatedUser, updatedSpace);
       await loadSpaces();
       await loadData();
       setShowSpaceSwitch(false);
       showToast('Space created successfully', 'success');
+      router.replace(product.homePath || '/');
     } catch (error) {
       console.error('Error creating space:', error);
       showToast('Failed to create space', 'error');

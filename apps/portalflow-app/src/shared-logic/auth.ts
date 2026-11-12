@@ -200,6 +200,12 @@ export async function createSpace(
       return result;
     }
 
+    // Align with platform-core createSpaceCore: switch into the new space before seeds/UI refresh.
+    const { error: switchError } = await setCurrentSpace(result.space.id);
+    if (switchError) {
+      return { space: null, error: switchError };
+    }
+
     try {
       await runOnSpaceCreated({
         spaceId: result.space.id,
@@ -222,8 +228,11 @@ export async function createSpace(
       firmStatus = (firmRow?.status as 'pending' | 'approved') ?? undefined;
     }
 
+    await getCurrentUser(true);
+    const switched = await getCurrentSpace(true);
+
     return {
-      space: { ...result.space, firmStatus },
+      space: { ...(switched ?? result.space), firmStatus },
       error: null,
     };
   } finally {

@@ -96,7 +96,7 @@ export default function SetupHouseholdScreen() {
       setSpaceNames(names);
 
       const owned = filterToAllowedSpaces(await getUserSpaces());
-      if (owned.length > 0 && invitations.length === 0) {
+      if (owned.length > 0 && invitations.length === 0 && !product.allowAdditionalSpaces) {
         router.replace('/');
         return;
       }
@@ -304,13 +304,18 @@ export default function SetupHouseholdScreen() {
             </TouchableOpacity>
             <View style={stylesWeb.header}>
               <View style={stylesWeb.logoRow}>
-                <Image source={product.logo} style={stylesWeb.logoImg} resizeMode="contain" />
+                <Image
+                  source={product.logo}
+                  style={[
+                    stylesWeb.logoImg,
+                    {
+                      width: product.authLogoSize ?? 64,
+                      height: product.authLogoSize ?? 64,
+                    },
+                  ]}
+                  resizeMode="contain"
+                />
                 <Text style={stylesWeb.brandName}>{product.productName}</Text>
-              </View>
-              <View style={stylesWeb.iconContainer}>
-                <View style={stylesWeb.circle}>
-                  <Ionicons name="home" size={48} color="#6C5CE7" />
-                </View>
               </View>
               <Text style={stylesWeb.title}>Setup Space</Text>
               <Text style={stylesWeb.subtitle}>Create your space to get started</Text>
@@ -341,9 +346,6 @@ export default function SetupHouseholdScreen() {
                 </View>
                 </>
                 ) : null}
-                {product.renderSetupExtras?.({ kind: spaceKind, extras, setExtras })}
-
-
 
                 <Text style={stylesWeb.label}>Space Name *</Text>
                 <View style={stylesWeb.inputWrapper}>
@@ -357,6 +359,8 @@ export default function SetupHouseholdScreen() {
                     editable={!creating}
                   />
                 </View>
+
+                {product.renderSetupExtras?.({ kind: spaceKind, extras, setExtras })}
 
                 <Text style={stylesWeb.label}>Address (Optional)</Text>
                 <View style={[stylesWeb.inputWrapper, stylesWeb.addressInputWrapper]}>
@@ -428,11 +432,6 @@ export default function SetupHouseholdScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <View style={styles.iconContainer}>
-            <View style={styles.circle}>
-              <Ionicons name="home" size={60} color="#6C5CE7" />
-            </View>
-          </View>
           <Text style={styles.title}>Setup Space</Text>
           <Text style={styles.subtitle}>Create your space to get started</Text>
         </View>
@@ -463,9 +462,6 @@ export default function SetupHouseholdScreen() {
             </View>
             </>
             ) : null}
-            {product.renderSetupExtras?.({ kind: spaceKind, extras, setExtras })}
-
-
 
             <View style={styles.inputContainer}>
               <Ionicons name="home-outline" size={20} color="#636E72" style={styles.inputIcon} />
@@ -477,6 +473,8 @@ export default function SetupHouseholdScreen() {
                 onChangeText={setNewSpaceName}
               />
             </View>
+
+            {product.renderSetupExtras?.({ kind: spaceKind, extras, setExtras })}
 
             <View style={[styles.inputContainer, styles.addressInputContainer]}>
               <Ionicons name="location-outline" size={20} color="#636E72" style={styles.addressInputIcon} />
@@ -545,7 +543,7 @@ const stylesWeb = StyleSheet.create({
   backBtn: { position: 'absolute', left: 24, top: 24, zIndex: 1, padding: 4 },
   header: { alignItems: 'center', marginBottom: 24 },
   logoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 16 },
-  logoImg: { width: 48, height: 48, borderRadius: 11, overflow: 'hidden' },
+  logoImg: { width: 64, height: 64, borderRadius: 16, overflow: 'hidden', backgroundColor: 'transparent' },
   brandName: { fontSize: 24, fontWeight: '800', color: '#6C5CE7', letterSpacing: -0.5 },
   iconContainer: { marginBottom: 12 },
   circle: { width: 88, height: 88, borderRadius: 44, backgroundColor: '#E9ECEF', justifyContent: 'center', alignItems: 'center', alignSelf: 'center' },

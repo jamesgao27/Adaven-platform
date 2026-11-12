@@ -18,6 +18,7 @@ export default function RootLayout() {
           <Stack.Screen name="login" />
           <Stack.Screen name="register" />
           <Stack.Screen name="reset-password" />
+          <Stack.Screen name="auth/confirm" />
           <Stack.Screen name="setup-space" />
           <Stack.Screen name="management" />
           <Stack.Screen

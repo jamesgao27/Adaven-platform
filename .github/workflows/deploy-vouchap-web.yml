@@ -16,7 +16,7 @@ jobs:
       deployments: write
     uses: ./.github/workflows/deploy-web-reusable.yml
     with:
-      app_dir: apps/portalflow-app
+      app_dir: apps/vouchap-app
       project_name: vouchap
       account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       app_variant: vouchap

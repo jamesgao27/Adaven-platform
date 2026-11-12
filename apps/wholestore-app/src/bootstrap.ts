@@ -29,8 +29,8 @@ configureProductUi({
   privacyUrl: 'https://wholestore.app/privacy',
   homePath: '/',
   spaceKinds: [
-    { id: 'consumer', label: 'Dealer (Consumer)' },
-    { id: 'provider', label: 'Factory (Provider)' },
+    { id: 'consumer', label: 'Dealer' },
+    { id: 'provider', label: 'Vendor' },
   ],
   defaultSpaceKind: 'consumer',
   allowAdditionalSpaces: true,

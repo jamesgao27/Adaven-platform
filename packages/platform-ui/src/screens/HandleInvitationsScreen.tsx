@@ -290,28 +290,27 @@ export default function HandleInvitationsScreen() {
       const { error } = await declineInvitation(inviteId);
       if (error) {
         console.error('Error declining invitation:', error);
-        // 即使失败也继续处理下一个邀请
+        showToast(error.message || 'Failed to decline invitation', 'error');
+        return;
       }
-    } catch (error) {
-      console.error('Error declining invitation:', error);
-    } finally {
-      // 关闭当前邀请对话框
+
+      const remaining = pendingInvitations.filter((inv) => inv.id !== inviteId);
+      setPendingInvitations(remaining);
       setShowInviteModal(false);
       setInviteId(null);
       setInviteSpaceId(null);
-      
-      // 检查是否还有更多邀请需要处理
-      const nextIndex = currentInvitationIndex + 1;
-      if (nextIndex < pendingInvitations.length) {
-        // 还有更多邀请，显示下一个
-        setCurrentInvitationIndex(nextIndex);
-        showNextInvitation(nextIndex, pendingInvitations);
-      } else {
-        // 所有邀请都处理完了
-        setPendingInvitations([]);
+
+      if (remaining.length > 0) {
         setCurrentInvitationIndex(0);
-        await continueAfterInvitations();
+        showNextInvitation(0, remaining);
+        return;
       }
+
+      setCurrentInvitationIndex(0);
+      await continueAfterInvitations();
+    } catch (error) {
+      console.error('Error declining invitation:', error);
+      showToast('Failed to decline invitation', 'error');
     }
   };
 

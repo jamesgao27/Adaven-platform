@@ -11,3 +11,5 @@ dist/
 apps/*/.expo
 apps/*/ios/Pods
 apps/*/android/.gradle
+
+.specstory/

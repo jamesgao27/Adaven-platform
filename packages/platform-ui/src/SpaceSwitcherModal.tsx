@@ -18,13 +18,21 @@ export type SwitcherSpace = {
     address?: string;
     logoUrl?: string | null;
     kind?: string;
+    clientProfileType?: string | null;
   };
 };
 
-function spaceKindLabel(kind?: string): string | null {
-  if (!kind) return null;
-  const match = getProductUi().spaceKinds.find((option) => option.id === kind);
-  return match?.label ?? null;
+function spaceTypeLabel(space?: SwitcherSpace['space']): string | null {
+  if (!space) return null;
+  const product = getProductUi();
+  if (product.formatSpaceTypeLabel) {
+    return product.formatSpaceTypeLabel({
+      kind: space.kind,
+      clientProfileType: space.clientProfileType,
+    });
+  }
+  if (!space.kind) return null;
+  return product.spaceKinds.find((option) => option.id === space.kind)?.label ?? null;
 }
 
 type SpaceSwitcherModalProps = {
@@ -62,7 +70,7 @@ export function SpaceSwitcherModal({
           <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
             {spaces.map((userSpace) => {
               const selected = currentSpaceId === userSpace.spaceId;
-              const kindLabel = spaceKindLabel(userSpace.space?.kind);
+              const typeLabel = spaceTypeLabel(userSpace.space);
               return (
                 <TouchableOpacity
                   key={userSpace.spaceId}
@@ -94,7 +102,7 @@ export function SpaceSwitcherModal({
                     <Text style={[styles.optionText, selected && styles.optionTextSelected]}>
                       {userSpace.space?.name || 'Unnamed Space'}
                     </Text>
-                    {kindLabel ? <Text style={styles.kind}>{kindLabel}</Text> : null}
+                    {typeLabel ? <Text style={styles.kind}>{typeLabel}</Text> : null}
                     {userSpace.space?.address ? (
                       <Text style={styles.address} numberOfLines={1}>
                         {userSpace.space.address}

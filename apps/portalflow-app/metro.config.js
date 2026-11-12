@@ -111,10 +111,24 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   return context.resolveRequest(context, moduleName, platform);
 };
 
-config.watchFolders = [...(config.watchFolders || []), adavenPlatformRoot];
+// Only watch packages this app actually imports. Watching the whole monorepo
+// (esp. packages/product-app hardlinks) makes Expo Router resolve routes under
+// product-app paths → Unmatched Route for /login etc.
+config.watchFolders = [
+  ...(config.watchFolders || []),
+  path.join(adavenPlatformRoot, 'packages/platform-core'),
+  path.join(adavenPlatformRoot, 'packages/platform-ui'),
+];
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(adavenPlatformRoot, 'node_modules'),
+];
+const productAppRoot = path.join(adavenPlatformRoot, 'packages/product-app');
+const escapeRe = (s) => s.replace(/[/\\^$*+?.()|[\]{}]/g, '\\$&');
+const prevBlock = config.resolver.blockList;
+config.resolver.blockList = [
+  ...(Array.isArray(prevBlock) ? prevBlock : prevBlock ? [prevBlock] : []),
+  new RegExp(`^${escapeRe(productAppRoot)}[/\\\\].*`),
 ];
 
 module.exports = config;

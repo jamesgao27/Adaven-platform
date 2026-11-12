@@ -61,6 +61,15 @@ export type ProductUiConfig = {
   spaceKinds: SpaceKindOption[];
   defaultSpaceKind: string;
   /**
+   * Optional label for the space switcher / management lists.
+   * Use when the visible type is not the kernel `kind` alone
+   * (e.g. Vouchap Household/Business via clientProfileType).
+   */
+  formatSpaceTypeLabel?: (space: {
+    kind?: string | null;
+    clientProfileType?: string | null;
+  }) => string | null;
+  /**
    * When set, login, setup, and the space switcher only offer these kernel kinds.
    * Omit to allow every kind the product lists.
    */

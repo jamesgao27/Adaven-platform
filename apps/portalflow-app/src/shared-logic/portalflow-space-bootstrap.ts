@@ -25,14 +25,14 @@ const productLogo = isVouchap
   : require('../../assets/logo.png');
 const sidebarLogo = isVouchap
   ? require('../../assets/vouchap-icon.png')
-  : require('../../assets/logo3.png');
+  : require('../../assets/logo.png');
 
 function readAuthProvidersFromExtra(): Partial<Record<AuthProviderId, AuthProviderConfig>> {
   const extra = (Constants.expoConfig?.extra ?? {}) as Record<string, unknown>;
-  const providers: Partial<Record<AuthProviderId, AuthProviderConfig>> = {};
-  if (typeof extra.googleWebClientId === 'string' && extra.googleWebClientId.trim()) {
-    providers.google = { enabled: true };
-  }
+  // Web Google SSO uses Supabase OAuth (no native googleWebClientId required).
+  const providers: Partial<Record<AuthProviderId, AuthProviderConfig>> = {
+    google: { enabled: true },
+  };
   if (extra.appleSignIn === true || extra.appleAuthEnabled === true) {
     providers.apple = { enabled: true };
   }
@@ -84,6 +84,8 @@ configureProductUi({
   productName,
   logo: productLogo,
   sidebarLogo,
+  // Match Wholestore / Vouchap: transparent mark + contain fit.
+  authLogoSize: 88,
   getBrand: () => ({
     productName,
     logo: productLogo as number,
@@ -95,10 +97,18 @@ configureProductUi({
   privacyUrl: `${publicOrigin}/privacy`,
   homePath: '/',
   spaceKinds: isVouchap
-    ? [{ id: 'consumer', label: 'Personal' }]
+    ? [{ id: 'consumer', label: 'Bookkeeping' }]
     : [{ id: 'provider', label: 'Firm' }],
   defaultSpaceKind: isVouchap ? 'consumer' : 'provider',
   allowedSpaceKinds: isVouchap ? ['consumer'] : ['provider'],
+  allowAdditionalSpaces: true,
+  formatSpaceTypeLabel: isVouchap
+    ? ({ clientProfileType }) => {
+        if (clientProfileType === 'business') return 'Business';
+        if (clientProfileType === 'household') return 'Household';
+        return null;
+      }
+    : ({ kind }) => (kind === 'provider' ? 'Firm' : null),
   adminOnMembersList: isVouchap,
   getSidebarNavItems: getPortalflowSidebarNavItems,
   getManagementMenuItems: (space) => getPortalflowManagementMenuItems(space?.kind as 'consumer' | 'provider' | undefined),
