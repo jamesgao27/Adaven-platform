@@ -33,7 +33,7 @@ export default {
     name: "Vouchap",
     slug: "vouchap",
     jsEngine: "jsc",
-    version: "2.7.3",
+    version: "2.7.4",
     owner: "aimlink",
     orientation: "default",
     icon: "./assets/vouchap-icon.png",
@@ -47,12 +47,12 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.vouchap.app",
-      buildNumber: "58",
+      buildNumber: "59",
       associatedDomains: ["applinks:vouchap.com"]
     },
     android: {
       package: "com.vouchap.app",
-      versionCode: 76,
+      versionCode: 77,
       permissions: [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",

@@ -400,7 +400,12 @@ export default function ReceiptsScreen() {
           uriForBackground = imageUri;
         } else {
           console.log('🔄 [processCapturedImage] 实时拍摄/扫描，进行边缘识别与裁剪优化');
-          const processedImageUri = await processImageForUpload(imageUri, { autoCrop, quality: 0.85 });
+          let processedImageUri = imageUri;
+          try {
+            processedImageUri = await processImageForUpload(imageUri, { autoCrop, quality: 0.85 });
+          } catch (preprocessErr) {
+            console.error('[processCapturedImage] preprocess failed, using original URI:', preprocessErr);
+          }
           imageUrl = await uploadReceiptImageTempWithSpace(processedImageUri, tempFileName, spaceId);
           uriForBackground = processedImageUri;
         }

@@ -726,8 +726,9 @@ export default function HomeScreen() {
             uriToUpload = await processImageForUpload(imageUri, { autoCrop, quality: 0.85 });
             console.log('[expense-debug] after processImageForUpload:', String(uriToUpload).slice(0, 80));
           } catch (preprocessErr) {
-            console.error('[expense-debug] processImageForUpload failed:', preprocessErr);
-            throw preprocessErr;
+            // Never block camera upload on preprocess — same outcome as gallery path.
+            console.error('[expense-debug] processImageForUpload failed, using original URI:', preprocessErr);
+            uriToUpload = imageUri;
           }
         }
 

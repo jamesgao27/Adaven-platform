@@ -397,10 +397,12 @@ export async function processImageForUpload(
     return imageUri;
   }
 
-  // Android DocumentScanner returns content://; prior working path uploaded that URI directly.
-  // getInfoAsync / ImageManipulator on content:// is what surfaces as "Failed to process expense".
-  if (Platform.OS === 'android' && imageUri.startsWith('content://')) {
-    console.log('[图片预处理] Android content://，跳过预处理（恢复此前直接上传）');
+  // Android store (SDK 54 + expo-file-system/legacy): getInfoAsync NPEs on InfoOptionsLegacy
+  // even when options are passed; camera path then surfaces as "Failed to process expense".
+  // Gallery already skips this function; DocumentScanner/ML Kit already yields JPEG under
+  // file://…/mlkit_docscan_ui_client/… — upload that URI directly (same as gallery).
+  if (Platform.OS === 'android') {
+    console.log('[图片预处理] Android 跳过预处理，直接上传扫描/拍摄原图');
     return imageUri;
   }
 
@@ -413,8 +415,11 @@ export async function processImageForUpload(
     let retries = 3;
     while (retries > 0) {
       try {
-        // Expo FileSystem legacy on Android NPE if options omitted (InfoOptionsLegacy cast).
-        fileInfo = await FileSystem.getInfoAsync(imageUri, {}) as { exists: boolean; size?: number };
+        // Always pass options — native getInfoAsync requires InfoOptionsLegacy (non-null).
+        fileInfo = await FileSystem.getInfoAsync(imageUri, { md5: false }) as {
+          exists: boolean;
+          size?: number;
+        };
         if (fileInfo.exists) {
           break;
         }

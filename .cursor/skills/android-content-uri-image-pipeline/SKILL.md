@@ -27,7 +27,9 @@ description: >-
 → catch 包装成 `Failed to process image` → UI `Failed to process expense`。  
 失败在**客户端预处理**，不是 RLS / 配额 / Gemini。
 
-**修复**：所有 `getInfoAsync` 显式传第二参 `{}`，例如 `getInfoAsync(uri, {})`。
+**修复（2.7.4）**：Android 上 **整段跳过** `processImageForUpload`（与相册一致，直接上传 ML Kit JPEG）。  
+次要：`getInfoAsync(uri, { md5: false })`；预处理失败时调用方回退原 URI，禁止抛成 Failed to process。  
+注意：仅传 `{}` 的 2.7.3 仍可能失败，不能当作已修复。
 
 ## 相关注意
 
