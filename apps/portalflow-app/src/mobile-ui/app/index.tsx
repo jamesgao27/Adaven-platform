@@ -721,7 +721,12 @@ export default function HomeScreen() {
 
         let uriToUpload = imageUri;
         if (!fromGallery) {
-          uriToUpload = await processImageForUpload(imageUri, { autoCrop, quality: 0.85 });
+          try {
+            uriToUpload = await processImageForUpload(imageUri, { autoCrop, quality: 0.85 });
+          } catch (preprocessErr) {
+            console.error('[expense-debug] processImageForUpload failed, using original URI:', preprocessErr);
+            uriToUpload = imageUri;
+          }
         }
 
         const tempFileName = `temp-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 9)}`;
