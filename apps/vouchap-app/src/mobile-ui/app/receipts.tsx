@@ -287,6 +287,25 @@ export default function ReceiptsScreen() {
     setRefreshing(false);
   }, [loadDetailsAsync]);
 
+  const captureWithSystemCamera = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      showToast('Camera permission is required to snap receipts.', 'error');
+      return;
+    }
+    console.log('[expense-debug] opening system camera…');
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: false,
+      quality: 0.9,
+    });
+    if (result.canceled || !result.assets?.length) {
+      console.log('[expense-debug] system camera canceled');
+      return;
+    }
+    processCapturedImage(result.assets[0].uri, false, false);
+  };
+
   const scanDocument = async () => {
     console.log('📷 [scanDocument] 开始调用文档扫描...');
     if (isExpoGo) {
@@ -302,6 +321,17 @@ export default function ReceiptsScreen() {
 
     const pre = await runClientRecognitionPreflight();
     if (!pre) return;
+
+    // Android: DocumentScanner ActivityResult promise can hang; system camera matches gallery upload path.
+    if (Platform.OS === 'android') {
+      try {
+        await captureWithSystemCamera();
+      } catch (error) {
+        console.error('[expense-debug] system camera error:', error);
+        showToast('Failed to snap document. Please try again.', 'error');
+      }
+      return;
+    }
 
     try {
       console.log('📷 [scanDocument] 动态导入 DocumentScanner 模块...');

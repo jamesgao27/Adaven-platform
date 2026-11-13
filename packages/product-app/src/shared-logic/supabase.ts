@@ -221,6 +221,40 @@ export async function uploadReceiptImageTemp(fileUri: string, tempFileName: stri
  * 字节与 MIME 不一致会导致存储/CDN 与 Gemini 解码异常、置信度极低（表现为 Needs Retake）。
  * 与 uploadSpaceImage 一致：非 Web 的本地图片在上传前统一转为 JPEG。
  */
+/** Avoid Uint8Array.from(atob(...)) which can OOM / throw on large camera JPEGs in Hermes. */
+function decodeBase64ToUint8Array(base64: string): Uint8Array {
+  const cleaned = base64.replace(/\s/g, '');
+  const BufferCtor = (globalThis as { Buffer?: { from: (s: string, enc: string) => Uint8Array } }).Buffer;
+  if (BufferCtor) {
+    return new Uint8Array(BufferCtor.from(cleaned, 'base64'));
+  }
+  const atobFn = (globalThis as { atob?: (s: string) => string }).atob;
+  if (typeof atobFn !== 'function') {
+    throw new Error('Base64 decode unavailable');
+  }
+  const binary = atobFn(cleaned);
+  const out = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+  return out;
+}
+
+async function readLocalFileBytes(fileUri: string): Promise<Uint8Array> {
+  const encoding =
+    FileSystem.EncodingType?.Base64 ?? ('base64' as unknown as (typeof FileSystem.EncodingType)['Base64']);
+  try {
+    const base64 = await FileSystem.readAsStringAsync(fileUri, { encoding });
+    console.log('[expense-debug] readAsStringAsync ok, base64 len', base64?.length);
+    return decodeBase64ToUint8Array(base64);
+  } catch (readErr) {
+    console.error('[expense-debug] readAsStringAsync failed, trying fetch:', readErr);
+    const res = await fetch(fileUri);
+    if (!res.ok) throw readErr;
+    const buf = await res.arrayBuffer();
+    console.log('[expense-debug] fetch fallback ok, bytes', buf.byteLength);
+    return new Uint8Array(buf);
+  }
+}
+
 async function ensureNativeImageUriIsJpegForStorage(
   fileUri: string,
   fileOpts?: { fileName?: string; mimeType?: string }
@@ -255,10 +289,7 @@ export async function uploadReceiptImageTempWithSpace(
       if (!res.ok) throw new Error(`Failed to fetch file: ${res.status}`);
       arrayBuffer = await res.arrayBuffer();
     } else {
-      const base64 = await FileSystem.readAsStringAsync(normalizedUri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      arrayBuffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+      arrayBuffer = await readLocalFileBytes(normalizedUri);
     }
 
     const { ext: fileExt, mimeType } = fileOpts

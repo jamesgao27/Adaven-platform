@@ -561,6 +561,34 @@ export default function HomeScreen() {
     }
   };
 
+  const captureWithSystemCamera = async (type: 'receipt' | 'invoice' = 'receipt') => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      showToast('Camera permission is required to snap receipts.', 'error');
+      return;
+    }
+    console.log('[expense-debug] opening system camera…');
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: false,
+      quality: 0.9,
+    });
+    if (result.canceled || !result.assets?.length) {
+      console.log('[expense-debug] system camera canceled');
+      return;
+    }
+    console.log(
+      '[expense-debug] system camera uri:',
+      String(result.assets[0].uri).slice(0, 64)
+    );
+    void processCapturedImages(
+      result.assets.map((a) => a.uri),
+      false,
+      false,
+      type
+    );
+  };
+
   const scanDocument = async (type: 'receipt' | 'invoice' = 'receipt') => {
     // If we are in Expo Go, we can't use the native scanner
     if (isExpoGo) {
@@ -591,6 +619,20 @@ export default function HomeScreen() {
       return;
     }
 
+    // Android: ML Kit DocumentScanner registers ActivityResultLauncher at call-time; on
+    // several OEM / RN hosts the JS promise never resolves after the UI closes (Metro
+    // showed "opening DocumentScanner…" with no "scanner returned"). System camera uses
+    // the same upload path as gallery and returns reliably.
+    if (Platform.OS === 'android') {
+      try {
+        await captureWithSystemCamera(type);
+      } catch (error) {
+        console.error('[expense-debug] system camera error:', error);
+        showToast('Failed to snap document. Please try again.', 'error');
+      }
+      return;
+    }
+
     try {
       // 动态导入 DocumentScanner（只在非 Expo Go 环境中导入）
       const module = await import('react-native-document-scanner-plugin');
@@ -605,18 +647,28 @@ export default function HomeScreen() {
         croppedImageQuality: 90,
         letUserAdjustCrop: false,
       };
-      if (Platform.OS === 'android') {
-        scanOptions.maxNumDocuments = MAX_CAPTURE_BATCH;
-      }
 
-      const { scannedImages } = await DocumentScanner.scanDocument(scanOptions as any);
+      console.log('[expense-debug] opening DocumentScanner…');
+      const scanResult = await DocumentScanner.scanDocument(scanOptions as any);
+      const scannedImages = scanResult?.scannedImages;
+      console.log(
+        '[expense-debug] scanner returned',
+        scannedImages?.length ?? 0,
+        'status:',
+        (scanResult as { status?: string })?.status,
+        'uri0:',
+        scannedImages?.[0] ? String(scannedImages[0]).slice(0, 64) : '(none)'
+      );
 
       if (scannedImages && scannedImages.length > 0) {
         // iOS VisionKit / Android：支持一次会话内多页；依次识别、逐条入库
         void processCapturedImages(scannedImages, false, false, type);
+      } else {
+        console.warn('[expense-debug] scanner returned no images (cancel or empty)');
       }
     } catch (error) {
       console.error('Document scan error:', error);
+      console.error('[expense-debug] Document scan error detail:', error instanceof Error ? error.message : error);
       // 如果是模块未找到错误，提示使用开发构建
       if (error instanceof Error && error.message?.includes('TurboModuleRegistry')) {
         showChoiceDialog(
@@ -720,20 +772,31 @@ export default function HomeScreen() {
         console.log(`Processing captured image ${i + 1}/${uris.length} (${type}):`, imageUri, 'fromGallery:', fromGallery);
         console.log('[expense-debug] uri scheme/prefix:', String(imageUri).slice(0, 48), 'space:', currentSpace?.id, currentSpace?.kind);
 
+        // Android: same as gallery — DocumentScanner already yields JPEG; preprocess hits
+        // broken expo-file-system legacy getInfoAsync (InfoOptionsLegacy NPE).
         let uriToUpload = imageUri;
-        if (!fromGallery) {
+        const skipPreprocess = fromGallery || Platform.OS === 'android';
+        if (!skipPreprocess) {
           try {
             uriToUpload = await processImageForUpload(imageUri, { autoCrop, quality: 0.85 });
             console.log('[expense-debug] after processImageForUpload:', String(uriToUpload).slice(0, 80));
           } catch (preprocessErr) {
-            // Never block camera upload on preprocess — same outcome as gallery path.
             console.error('[expense-debug] processImageForUpload failed, using original URI:', preprocessErr);
             uriToUpload = imageUri;
           }
+        } else if (Platform.OS === 'android' && !fromGallery) {
+          console.log('[expense-debug] Android camera: skip preprocess, upload scanner URI directly');
         }
 
         const tempFileName = `temp-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 9)}`;
-        const spaceId = currentSpace?.id ?? '';
+        let spaceId = currentSpace?.id ?? '';
+        if (!spaceId) {
+          const user = await getCurrentUser();
+          spaceId = user?.currentSpaceId || user?.spaceId || '';
+        }
+        if (!spaceId) {
+          throw new Error('No space selected');
+        }
         let imageUrl: string;
         try {
           imageUrl = await uploadReceiptImageTempWithSpace(uriToUpload, tempFileName, spaceId);
@@ -770,10 +833,14 @@ export default function HomeScreen() {
           error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : error
         );
         hadError = true;
+        const detail =
+          error instanceof Error && error.message
+            ? error.message.replace(/\s+/g, ' ').slice(0, 120)
+            : '';
         showToast(
           uris.length > 1
-            ? `Failed to process ${type === 'invoice' ? 'income' : 'expense'} (image ${i + 1} of ${uris.length}).`
-            : `Failed to process ${type === 'invoice' ? 'income' : 'expense'}.`,
+            ? `Failed to process ${type === 'invoice' ? 'income' : 'expense'} (image ${i + 1} of ${uris.length})${detail ? `: ${detail}` : '.'}`
+            : `Failed to process ${type === 'invoice' ? 'income' : 'expense'}${detail ? `: ${detail}` : '.'}`,
           'error'
         );
         if (uris.length === 1) {

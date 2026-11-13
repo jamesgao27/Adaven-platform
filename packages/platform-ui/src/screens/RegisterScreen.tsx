@@ -29,6 +29,7 @@ import { showToast } from '../lib/toast';
 import { getProductUi } from '../product';
 import { ThirdPartyAuthButtons } from '../ThirdPartyAuthButtons';
 import { EmailCodeStep } from './EmailCodeStep';
+import { AUTH_FORM } from '../styles/auth-form';
 
 const isWeb = Platform.OS === 'web';
 
@@ -365,73 +366,81 @@ export default function RegisterScreen() {
                   </View>
                 </View>
               )}
-              <Text style={stylesWeb.label}>Your name</Text>
-              <View style={stylesWeb.inputWrapper}>
-                <Ionicons name="person-outline" size={20} color="#636E72" style={stylesWeb.inputIcon} />
-                <TextInput
-                  style={stylesWeb.input}
-                  placeholder="Your name"
-                  placeholderTextColor="#95A5A6"
-                  value={userName}
-                  onChangeText={setUserName}
-                  autoCapitalize="words"
-                  autoComplete="name"
-                  editable={!loading}
-                />
+              <View style={stylesWeb.inputGroup}>
+                <Text style={stylesWeb.label}>Your name</Text>
+                <View style={stylesWeb.inputWrapper}>
+                  <Ionicons name="person-outline" size={20} color="#636E72" style={stylesWeb.inputIcon} />
+                  <TextInput
+                    style={stylesWeb.input}
+                    placeholder="Your name"
+                    placeholderTextColor="#95A5A6"
+                    value={userName}
+                    onChangeText={setUserName}
+                    autoCapitalize="words"
+                    autoComplete="name"
+                    editable={!loading}
+                  />
+                </View>
               </View>
-              <Text style={stylesWeb.label}>Email Address</Text>
-              <View style={stylesWeb.inputWrapper}>
-                <Ionicons name="mail-outline" size={20} color="#636E72" style={stylesWeb.inputIcon} />
-                <TextInput
-                  ref={emailInputRef}
-                  style={[stylesWeb.input, isInviteRegistration && stylesWeb.inputReadOnly]}
-                  placeholder="name@example.com"
-                  placeholderTextColor="#95A5A6"
-                  value={email}
-                  onChangeText={setEmail}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  autoComplete="username"
-                  editable={!loading && !isInviteRegistration}
-                />
+              <View style={stylesWeb.inputGroup}>
+                <Text style={stylesWeb.label}>Email Address</Text>
+                <View style={stylesWeb.inputWrapper}>
+                  <Ionicons name="mail-outline" size={20} color="#636E72" style={stylesWeb.inputIcon} />
+                  <TextInput
+                    ref={emailInputRef}
+                    style={[stylesWeb.input, isInviteRegistration && stylesWeb.inputReadOnly]}
+                    placeholder="name@example.com"
+                    placeholderTextColor="#95A5A6"
+                    value={email}
+                    onChangeText={setEmail}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    autoComplete="username"
+                    editable={!loading && !isInviteRegistration}
+                  />
+                </View>
               </View>
-              <Text style={stylesWeb.label}>Password</Text>
-              <View style={stylesWeb.inputWrapper}>
-                <Ionicons name="lock-closed-outline" size={20} color="#636E72" style={stylesWeb.inputIcon} />
-                <TextInput
-                  ref={passwordInputRef}
-                  style={stylesWeb.input}
-                  placeholder="••••••••"
-                  placeholderTextColor="#95A5A6"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
-                  autoComplete="new-password"
-                  editable={!loading}
-                />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={stylesWeb.eyeIcon} hitSlop={10}>
-                  <Ionicons name={showPassword ? 'eye-outline' : 'eye-off-outline'} size={20} color="#636E72" />
-                </TouchableOpacity>
+              <View style={stylesWeb.inputGroup}>
+                <Text style={stylesWeb.label}>Password</Text>
+                <View style={stylesWeb.inputWrapper}>
+                  <Ionicons name="lock-closed-outline" size={20} color="#636E72" style={stylesWeb.inputIcon} />
+                  <TextInput
+                    ref={passwordInputRef}
+                    style={stylesWeb.input}
+                    placeholder="••••••••"
+                    placeholderTextColor="#95A5A6"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                    autoComplete="new-password"
+                    editable={!loading}
+                  />
+                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={stylesWeb.eyeIcon} hitSlop={10}>
+                    <Ionicons name={showPassword ? 'eye-outline' : 'eye-off-outline'} size={20} color="#636E72" />
+                  </TouchableOpacity>
+                </View>
               </View>
-              <Text style={stylesWeb.label}>Confirm Password</Text>
-              <View style={stylesWeb.inputWrapper}>
-                <Ionicons name="lock-closed-outline" size={20} color="#636E72" style={stylesWeb.inputIcon} />
-                <TextInput
-                  ref={confirmPasswordInputRef}
-                  style={stylesWeb.input}
-                  placeholder="••••••••"
-                  placeholderTextColor="#95A5A6"
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  secureTextEntry={!showConfirmPassword}
-                  autoCapitalize="none"
-                  autoComplete="new-password"
-                  editable={!loading}
-                />
-                <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)} style={stylesWeb.eyeIcon} hitSlop={10}>
-                  <Ionicons name={showConfirmPassword ? 'eye-outline' : 'eye-off-outline'} size={20} color="#636E72" />
-                </TouchableOpacity>
+              <View style={stylesWeb.inputGroup}>
+                <Text style={stylesWeb.label}>Confirm Password</Text>
+                <View style={stylesWeb.inputWrapper}>
+                  <Ionicons name="lock-closed-outline" size={20} color="#636E72" style={stylesWeb.inputIcon} />
+                  <TextInput
+                    ref={confirmPasswordInputRef}
+                    style={stylesWeb.input}
+                    placeholder="••••••••"
+                    placeholderTextColor="#95A5A6"
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    secureTextEntry={!showConfirmPassword}
+                    autoCapitalize="none"
+                    autoComplete="new-password"
+                    editable={!loading}
+                  />
+                  <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)} style={stylesWeb.eyeIcon} hitSlop={10}>
+                    <Ionicons name={showConfirmPassword ? 'eye-outline' : 'eye-off-outline'} size={20} color="#636E72" />
+                  </TouchableOpacity>
+                </View>
               </View>
               <TouchableOpacity
                 style={[stylesWeb.btnWrap, (loading || (isInviteRegistration && !inviteReady) || (!isInviteRegistration && !agreedToTerms)) && stylesWeb.btnDisabled]}
@@ -510,7 +519,7 @@ export default function RegisterScreen() {
           </TouchableOpacity>
           <View style={styles.iconContainer}>
             <View style={styles.circle}>
-              <Ionicons name="people" size={60} color="#6C5CE7" />
+              <Ionicons name="people" size={36} color="#6C5CE7" />
             </View>
           </View>
           <Text style={styles.title}>{isInviteRegistration ? 'Complete your profile' : 'Create Account'}</Text>
@@ -722,25 +731,54 @@ const stylesWeb = StyleSheet.create({
   brandName: { fontSize: 28, fontWeight: '800', color: '#6C5CE7', letterSpacing: -0.5 },
   title: { fontSize: 22, fontWeight: '800', color: '#2D3436', marginBottom: 4 },
   subtitle: { fontSize: 14, color: '#636E72', textAlign: 'center' },
-  form: { gap: 10 },
-  label: { fontSize: 13, fontWeight: '500', color: '#2D3436', marginLeft: 4, marginBottom: -2 },
-  inputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8F9FA', borderWidth: 1, borderColor: '#E9ECEF', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, minHeight: 44 },
+  form: { gap: AUTH_FORM.fieldGap },
+  inputGroup: { gap: 6 },
+  label: {
+    fontSize: AUTH_FORM.labelFontSize,
+    fontWeight: '500',
+    color: AUTH_FORM.textColor,
+    marginLeft: 4,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: AUTH_FORM.inputBg,
+    borderWidth: 1,
+    borderColor: AUTH_FORM.borderColor,
+    borderRadius: AUTH_FORM.controlRadius,
+    paddingHorizontal: AUTH_FORM.horizontalPadding,
+    minHeight: AUTH_FORM.controlMinHeight,
+  },
   inputIcon: { marginRight: 10 },
-  input: { flex: 1, fontSize: 15, color: '#2D3436', paddingVertical: 0, minHeight: 22, includeFontPadding: false, textAlignVertical: 'center', backgroundColor: '#F8F9FA', outlineStyle: 'none' },
-  inputReadOnly: { color: '#636E72', opacity: 0.9 },
+  input: {
+    flex: 1,
+    fontSize: AUTH_FORM.inputFontSize,
+    color: AUTH_FORM.textColor,
+    paddingVertical: 0,
+    minHeight: 22,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+    backgroundColor: AUTH_FORM.inputBg,
+    outlineStyle: 'none',
+  },
+  inputReadOnly: { color: AUTH_FORM.mutedColor, opacity: 0.9 },
   eyeIcon: { padding: 4 },
-  agreementRow: { flexDirection: 'row', alignItems: 'center', marginTop: 0, marginBottom: 2 },
+  agreementRow: { flexDirection: 'row', alignItems: 'center', marginTop: 0, marginBottom: 0 },
   checkboxWrap: { marginRight: 8, padding: 2 },
   agreementTextWrap: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
-  agreementText: { fontSize: 12, color: '#636E72' },
-  linkText: { fontSize: 12, color: '#6C5CE7', fontWeight: '600', textDecorationLine: 'underline' },
-  btnWrap: { marginTop: 4, borderRadius: 14, overflow: 'hidden' },
+  agreementText: { fontSize: 12, color: AUTH_FORM.mutedColor },
+  linkText: { fontSize: 12, color: AUTH_FORM.primary, fontWeight: '600', textDecorationLine: 'underline' },
+  btnWrap: { marginTop: 4, borderRadius: AUTH_FORM.controlRadius, overflow: 'hidden' },
   btnDisabled: { opacity: 0.7 },
-  mainBtn: { paddingVertical: 12, alignItems: 'center', justifyContent: 'center', minHeight: 44 },
-  mainBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  footerLink: { alignItems: 'center', marginTop: 12 },
-  footerLinkP: { fontSize: 13, color: '#636E72' },
-  footerLinkSpan: { color: '#6C5CE7', fontWeight: '600' },
+  mainBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: AUTH_FORM.controlMinHeight,
+  },
+  mainBtnText: { color: '#fff', fontSize: AUTH_FORM.buttonFontSize, fontWeight: '600' },
+  footerLink: { alignItems: 'center', marginTop: AUTH_FORM.sectionGap },
+  footerLinkP: { fontSize: 13, color: AUTH_FORM.mutedColor },
+  footerLinkSpan: { color: AUTH_FORM.primary, fontWeight: '600' },
 });
 
 const styles = StyleSheet.create({
@@ -768,13 +806,13 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   iconContainer: {
-    marginBottom: 24,
-    marginTop: 20,
+    marginBottom: 16,
+    marginTop: 12,
   },
   circle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: '#E9ECEF',
     justifyContent: 'center',
     alignItems: 'center',
@@ -782,30 +820,28 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#2D3436',
+    color: AUTH_FORM.textColor,
     marginBottom: 8,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#636E72',
+    fontSize: 15,
+    color: AUTH_FORM.mutedColor,
     textAlign: 'center',
   },
   form: {
     flex: 1,
     paddingBottom: 20,
+    gap: AUTH_FORM.fieldGap,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginBottom: 12,
+    backgroundColor: AUTH_FORM.inputBgMobile,
+    borderRadius: AUTH_FORM.controlRadius,
+    paddingHorizontal: AUTH_FORM.horizontalPadding,
     borderWidth: 1,
-    borderColor: '#E9ECEF',
-    minHeight: 52,
-    // 优化触摸响应
+    borderColor: AUTH_FORM.borderColor,
+    minHeight: AUTH_FORM.controlMinHeight,
     justifyContent: 'flex-start',
   },
   inputIcon: {
@@ -813,16 +849,15 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontSize: 16,
-    color: '#2D3436',
+    fontSize: AUTH_FORM.inputFontSize,
+    color: AUTH_FORM.textColor,
     paddingVertical: 0,
-    minHeight: 24,
-    // 优化输入响应性
+    minHeight: 22,
     includeFontPadding: false,
     textAlignVertical: 'center',
   },
   inputReadOnly: {
-    color: '#636E72',
+    color: AUTH_FORM.mutedColor,
     opacity: 0.9,
   },
   eyeIcon: {
@@ -831,8 +866,8 @@ const styles = StyleSheet.create({
   agreementRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
-    marginTop: 4,
+    marginBottom: 0,
+    marginTop: 0,
   },
   checkboxWrap: {
     marginRight: 8,
@@ -846,24 +881,23 @@ const styles = StyleSheet.create({
   },
   agreementText: {
     fontSize: 12,
-    color: '#636E72',
+    color: AUTH_FORM.mutedColor,
   },
   linkTextInline: {
     fontSize: 12,
-    color: '#6C5CE7',
+    color: AUTH_FORM.primary,
     fontWeight: '600',
     textDecorationLine: 'underline',
   },
   button: {
-    backgroundColor: '#6C5CE7',
-    borderRadius: 12,
-    paddingVertical: 14,
+    backgroundColor: AUTH_FORM.primary,
+    borderRadius: AUTH_FORM.controlRadius,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 4,
-    marginBottom: 20,
-    minHeight: 52,
-    shadowColor: '#6C5CE7',
+    marginBottom: 0,
+    minHeight: AUTH_FORM.controlMinHeight,
+    shadowColor: AUTH_FORM.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -874,18 +908,19 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: AUTH_FORM.buttonFontSize,
     fontWeight: '600',
   },
   linkButton: {
     alignItems: 'center',
+    marginTop: AUTH_FORM.sectionGap,
   },
   linkText: {
     fontSize: 14,
-    color: '#636E72',
+    color: AUTH_FORM.mutedColor,
   },
   linkTextBold: {
-    color: '#6C5CE7',
+    color: AUTH_FORM.primary,
     fontWeight: '600',
   },
   modalOverlay: {

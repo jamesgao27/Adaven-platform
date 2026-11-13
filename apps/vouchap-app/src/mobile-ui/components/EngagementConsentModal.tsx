@@ -14,8 +14,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-const TERMS_URL = 'https://portalflow.app/terms';
-const PRIVACY_URL = 'https://portalflow.app/privacy';
+const TERMS_URL = 'https://www.aim.link/terms';
+const PRIVACY_URL = 'https://www.aim.link/privacy';
 
 type Props = {
   visible: boolean;
@@ -172,7 +172,7 @@ export default function EngagementConsentModal({
           <View style={styles.footer}>
             <Text style={styles.footerText}>
               By continuing, you acknowledge and agree to the{' '}
-              <Text style={styles.link} onPress={() => openUrl(TERMS_URL)}>Portalflow Terms</Text>
+              <Text style={styles.link} onPress={() => openUrl(TERMS_URL)}>Terms of Service</Text>
               {' '}and{' '}
               <Text style={styles.link} onPress={() => openUrl(PRIVACY_URL)}>Privacy Policy</Text>.
             </Text>

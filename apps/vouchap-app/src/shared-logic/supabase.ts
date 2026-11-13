@@ -240,6 +240,40 @@ async function ensureNativeImageUriIsJpegForStorage(
   return manipulated.uri;
 }
 
+/** Avoid Uint8Array.from(atob(...)) which can OOM / throw on large camera JPEGs in Hermes. */
+function decodeBase64ToUint8Array(base64: string): Uint8Array {
+  const cleaned = base64.replace(/\s/g, '');
+  const BufferCtor = (globalThis as { Buffer?: { from: (s: string, enc: string) => Uint8Array } }).Buffer;
+  if (BufferCtor) {
+    return new Uint8Array(BufferCtor.from(cleaned, 'base64'));
+  }
+  const atobFn = (globalThis as { atob?: (s: string) => string }).atob;
+  if (typeof atobFn !== 'function') {
+    throw new Error('Base64 decode unavailable');
+  }
+  const binary = atobFn(cleaned);
+  const out = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+  return out;
+}
+
+async function readLocalFileBytes(fileUri: string): Promise<Uint8Array> {
+  try {
+    const base64 = await FileSystem.readAsStringAsync(fileUri, {
+      encoding: (FileSystem.EncodingType?.Base64 ?? 'base64') as 'base64',
+    });
+    console.log('[expense-debug] readAsStringAsync ok, base64 len', base64?.length);
+    return decodeBase64ToUint8Array(base64);
+  } catch (readErr) {
+    console.error('[expense-debug] readAsStringAsync failed, trying fetch:', readErr);
+    const res = await fetch(fileUri);
+    if (!res.ok) throw readErr;
+    const buf = await res.arrayBuffer();
+    console.log('[expense-debug] fetch fallback ok, bytes', buf.byteLength);
+    return new Uint8Array(buf);
+  }
+}
+
 /** 按 space_id 分文件夹上传到 receipts bucket，路径为 {spaceId}/temp/{tempFileName}.{ext}；支持图片与 PDF/DOC 等文档；expenses/income/inbound/outbound 新上传使用此方法 */
 export async function uploadReceiptImageTempWithSpace(
   fileUri: string,
@@ -252,7 +286,7 @@ export async function uploadReceiptImageTempWithSpace(
       platform: Platform.OS,
       uriPrefix: String(fileUri).slice(0, 64),
       spaceId,
-      encodingType: FileSystem.EncodingType?.Base64,
+      encodingType: FileSystem.EncodingType?.Base64 ?? 'base64',
     });
     const normalizedUri = await ensureNativeImageUriIsJpegForStorage(fileUri, fileOpts);
     console.log('[expense-debug] after ensureNative', String(normalizedUri).slice(0, 64));
@@ -262,16 +296,7 @@ export async function uploadReceiptImageTempWithSpace(
       if (!res.ok) throw new Error(`Failed to fetch file: ${res.status}`);
       arrayBuffer = await res.arrayBuffer();
     } else {
-      try {
-        const base64 = await FileSystem.readAsStringAsync(normalizedUri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        console.log('[expense-debug] readAsStringAsync ok, base64 len', base64?.length);
-        arrayBuffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-      } catch (readErr) {
-        console.error('[expense-debug] readAsStringAsync failed', readErr);
-        throw readErr;
-      }
+      arrayBuffer = await readLocalFileBytes(normalizedUri);
     }
 
     const { ext: fileExt, mimeType } = fileOpts

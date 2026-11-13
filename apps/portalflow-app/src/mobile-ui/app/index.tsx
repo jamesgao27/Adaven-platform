@@ -591,6 +591,35 @@ export default function HomeScreen() {
       return;
     }
 
+    // Android: DocumentScanner ActivityResult promise can hang on OEM/RN hosts.
+    // System camera returns reliably and uses the same upload path as gallery.
+    if (Platform.OS === 'android') {
+      try {
+        const permission = await ImagePicker.requestCameraPermissionsAsync();
+        if (!permission.granted) {
+          showToast('Camera permission is required to snap receipts.', 'error');
+          return;
+        }
+        const result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: false,
+          quality: 0.9,
+        });
+        if (!result.canceled && result.assets?.length) {
+          void processCapturedImages(
+            result.assets.map((a) => a.uri),
+            false,
+            false,
+            type
+          );
+        }
+      } catch (error) {
+        console.error('Document scan error:', error);
+        showToast('Failed to snap document. Please try again.', 'error');
+      }
+      return;
+    }
+
     try {
       // 动态导入 DocumentScanner（只在非 Expo Go 环境中导入）
       const module = await import('react-native-document-scanner-plugin');
@@ -605,9 +634,6 @@ export default function HomeScreen() {
         croppedImageQuality: 90,
         letUserAdjustCrop: false,
       };
-      if (Platform.OS === 'android') {
-        scanOptions.maxNumDocuments = MAX_CAPTURE_BATCH;
-      }
 
       const { scannedImages } = await DocumentScanner.scanDocument(scanOptions as any);
 
@@ -720,7 +746,8 @@ export default function HomeScreen() {
         console.log(`Processing captured image ${i + 1}/${uris.length} (${type}):`, imageUri, 'fromGallery:', fromGallery);
 
         let uriToUpload = imageUri;
-        if (!fromGallery) {
+        const skipPreprocess = fromGallery || Platform.OS === 'android';
+        if (!skipPreprocess) {
           try {
             uriToUpload = await processImageForUpload(imageUri, { autoCrop, quality: 0.85 });
           } catch (preprocessErr) {

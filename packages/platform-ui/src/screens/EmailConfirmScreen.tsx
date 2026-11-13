@@ -7,7 +7,36 @@ import { getPlatformClient } from '@adaven/platform-core';
 
 type ConfirmStatus = 'verifying' | 'success' | 'error';
 
-async function readAuthParam(name: string): Promise<string | null> {
+function paramFromUrlString(url: string, name: string): string | null {
+  try {
+    const parsed = Linking.parse(url);
+    const fromQuery = parsed.queryParams?.[name];
+    if (typeof fromQuery === 'string' && fromQuery) return fromQuery;
+  } catch {
+    // fall through
+  }
+  try {
+    const normalized = url.includes('://') ? url.replace(/^([^:]+):\/\//, 'https://') : `https://x/?${url}`;
+    const u = new URL(normalized);
+    const fromSearch = u.searchParams.get(name);
+    if (fromSearch) return fromSearch;
+    const hash = u.hash?.replace(/^#/, '') ?? '';
+    if (hash) {
+      const fromHash = new URLSearchParams(hash).get(name);
+      if (fromHash) return fromHash;
+    }
+  } catch {
+    // fall through
+  }
+  const m = url.match(new RegExp(`[?#&]${name}=([^&#]+)`));
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
+async function readAuthParam(name: string, preferUrl?: string | null): Promise<string | null> {
+  if (preferUrl) {
+    const fromPrefer = paramFromUrlString(preferUrl, name);
+    if (fromPrefer) return fromPrefer;
+  }
   if (typeof window !== 'undefined') {
     const query = new URLSearchParams(window.location.search);
     const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
@@ -16,13 +45,33 @@ async function readAuthParam(name: string): Promise<string | null> {
   }
   const url = await Linking.getInitialURL();
   if (!url) return null;
-  const parsed = Linking.parse(url);
-  const queryValue = parsed.queryParams?.[name];
-  if (typeof queryValue === 'string') return queryValue;
-  if (!parsed.queryParams && url.includes('?')) {
-    return new URL(url).searchParams.get(name);
+  return paramFromUrlString(url, name);
+}
+
+/** Wait briefly for the OAuth / magic-link deep link — cold start often mounts confirm before the URL is ready. */
+async function waitForAuthLandingUrl(timeoutMs = 2500): Promise<string | null> {
+  const existing = await Linking.getInitialURL();
+  if (existing && (existing.includes('code=') || existing.includes('token_hash=') || existing.includes('access_token=') || existing.includes('error'))) {
+    return existing;
   }
-  return null;
+  if (typeof window !== 'undefined') {
+    const href = window.location.href;
+    if (href.includes('code=') || href.includes('token_hash=') || href.includes('access_token=') || href.includes('error')) {
+      return href;
+    }
+  }
+  return await new Promise((resolve) => {
+    let settled = false;
+    const finish = (url: string | null) => {
+      if (settled) return;
+      settled = true;
+      sub.remove();
+      clearTimeout(timer);
+      resolve(url);
+    };
+    const sub = Linking.addEventListener('url', ({ url }) => finish(url));
+    const timer = setTimeout(() => finish(existing), timeoutMs);
+  });
 }
 
 type NextRoute = { pathname: string; params?: Record<string, string> };
@@ -33,20 +82,34 @@ function loginRouteWithEmail(email: string | null): NextRoute {
   return { pathname: '/login', params: { email: trimmed } };
 }
 
+function isBenignCodeReuseError(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes('already') ||
+    m.includes('expired') ||
+    m.includes('invalid') ||
+    m.includes('verifier') ||
+    m.includes('code challenge')
+  );
+}
+
 export default function EmailConfirmScreen() {
   const router = useRouter();
   const [status, setStatus] = useState<ConfirmStatus>('verifying');
-  const [message, setMessage] = useState('Verifying your email...');
+  const [message, setMessage] = useState('Signing you in...');
   const [nextRoute, setNextRoute] = useState<NextRoute>({ pathname: '/login' });
 
   useEffect(() => {
     let cancelled = false;
 
     async function confirm() {
-      const type = await readAuthParam('type');
-      const emailParam = await readAuthParam('email');
+      const landingUrl = await waitForAuthLandingUrl();
+      if (cancelled) return;
+
+      const type = await readAuthParam('type', landingUrl);
+      const emailParam = await readAuthParam('email', landingUrl);
       const loginDestination = loginRouteWithEmail(emailParam);
-      const errorDescription = await readAuthParam('error_description');
+      const errorDescription = await readAuthParam('error_description', landingUrl);
       if (errorDescription) {
         if (cancelled) return;
         setStatus('error');
@@ -56,10 +119,25 @@ export default function EmailConfirmScreen() {
       }
 
       const supabase = getPlatformClient();
-      const code = await readAuthParam('code');
-      const tokenHash = await readAuthParam('token_hash');
-      const accessToken = await readAuthParam('access_token');
-      const refreshToken = await readAuthParam('refresh_token');
+
+      // Native Google SSO often exchanges the code in ThirdPartyAuthButtons first, then this
+      // route still opens briefly. If a session already exists, go home without showing ✗.
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (session?.user && !cancelled) {
+          router.replace('/');
+          return;
+        }
+      } catch {
+        // continue with link params
+      }
+
+      const code = await readAuthParam('code', landingUrl);
+      const tokenHash = await readAuthParam('token_hash', landingUrl);
+      const accessToken = await readAuthParam('access_token', landingUrl);
+      const refreshToken = await readAuthParam('refresh_token', landingUrl);
 
       try {
         if (code) {
@@ -78,6 +156,14 @@ export default function EmailConfirmScreen() {
           });
           if (error) throw error;
         } else {
+          // Still no params — one more session check (SSO may have finished in parallel).
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
+          if (session?.user) {
+            if (!cancelled) router.replace('/');
+            return;
+          }
           throw new Error('This confirmation link is missing its return path.');
         }
 
@@ -103,6 +189,25 @@ export default function EmailConfirmScreen() {
         return;
       } catch (error) {
         if (cancelled) return;
+
+        // Code already consumed by native WebBrowser handler → treat as success if signed in.
+        try {
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
+          if (session?.user) {
+            router.replace('/');
+            return;
+          }
+        } catch {
+          /* ignore */
+        }
+
+        const errMsg =
+          error instanceof Error && error.message
+            ? error.message
+            : 'This link has expired or has already been used.';
+
         // Prefer email from the link; fall back to session user if any.
         let emailForLogin = emailParam;
         if (!emailForLogin) {
@@ -115,13 +220,15 @@ export default function EmailConfirmScreen() {
             /* ignore */
           }
         }
+
+        // Avoid flashing a scary error for transient double-exchange races; keep verifying then login.
+        if (isBenignCodeReuseError(errMsg) && !emailForLogin) {
+          router.replace('/login');
+          return;
+        }
+
         setStatus('error');
-        setMessage(
-          error instanceof Error && error.message
-            ? error.message
-            : 'This link has expired or has already been used.',
-        );
-        // Invite / already-used links: go to login (not register) with email prefills when available.
+        setMessage(errMsg);
         setNextRoute(loginRouteWithEmail(emailForLogin));
       }
     }
@@ -130,7 +237,7 @@ export default function EmailConfirmScreen() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [router]);
 
   const goNext = () => {
     router.replace(

@@ -91,10 +91,10 @@ configureProductUi({
     logo: productLogo as number,
     sidebarLogo: sidebarLogo as number,
   }),
-  sloganLine1: isVouchap ? 'Receipts and income,' : 'Client services,',
-  sloganLine2: isVouchap ? 'in one bookkeeping space.' : 'in one firm workspace.',
-  termsUrl: `${publicOrigin}/terms`,
-  privacyUrl: `${publicOrigin}/privacy`,
+  sloganLine1: isVouchap ? 'Voucher Snapping,' : 'Serve each client',
+  sloganLine2: isVouchap ? 'Balance Clarity.' : 'as your reputation.',
+  termsUrl: 'https://www.aim.link/terms',
+  privacyUrl: 'https://www.aim.link/privacy',
   homePath: '/',
   spaceKinds: isVouchap
     ? [{ id: 'consumer', label: 'Bookkeeping' }]

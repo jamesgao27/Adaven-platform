@@ -35,7 +35,7 @@ import {
   type PortalFile,
 } from '@/lib/portal-data';
 
-const TERMS_URL = 'https://www.vouchap.com/terms';
+const TERMS_URL = 'https://www.aim.link/terms';
 
 async function readPickedFile(uri: string): Promise<ArrayBuffer> {
   const res = await fetch(uri);

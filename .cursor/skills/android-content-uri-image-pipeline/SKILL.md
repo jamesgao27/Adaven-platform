@@ -2,68 +2,60 @@
 name: android-content-uri-image-pipeline
 description: >-
   Diagnoses and prevents Android Failed to process expense / image upload
-  failures caused by DocumentScanner content:// URIs hitting ImageManipulator
-  or FileSystem.getInfoAsync. Use when Vouchap/Portalflow Android camera or
-  document scan fails before storage/AI, or when changing ensureNativeImageUriIsJpegForStorage,
-  processImageForUpload, or react-native-document-scanner-plugin.
+  failures caused by DocumentScanner paths hitting ImageManipulator
+  or FileSystem.getInfoAsync (InfoOptionsLegacy NPE). Use when Vouchap/Portalflow
+  Android camera or document scan fails before storage/AI, or when changing
+  ensureNativeImageUriIsJpegForStorage, processImageForUpload, or
+  react-native-document-scanner-plugin.
 ---
 
-# Android content:// 图片链路（拍小票）
+# Android 拍小票图片链路
 
-## 已确认根因（Vouchap Android，logcat 实测）
+## 与「以前可用」路径对齐的结论
 
-**现象**：Android 正式版拍小票立刻 toast `Failed to process expense`；库里无新 `input_type=camera` 记录；Storage / gemini-proxy / 相册上传正常。
+旧版可用路径本质是：**拍照/扫描得到本地 JPEG URI → 不做 ImageManipulator/getInfoAsync 预处理 → `readAsStringAsync` 上传**（相册一直如此）。
 
-**实测 URI**（vivo / ML Kit）：  
-`file:///data/user/0/com.vouchap.app/cache/mlkit_docscan_ui_client/….jpg`  
-（不一定是 `content://`；勿只按 content 方案修。）
+商店 2.7.x 回归是因为相机路径多走了 `processImageForUpload`（SDK 54 + `expo-file-system/legacy` 的 `getInfoAsync` → `InfoOptionsLegacy` NPE）。  
+另外 DocumentScanner 在部分 OEM/dev 上 **Promise 不 resolve**，根本进不了上传。
 
-**根因**：`processImageForUpload` 调用  
-`FileSystem.getInfoAsync(uri)`（**未传 options**）。  
-`expo-file-system/legacy` 在 Android 上会把缺失的第 2 参打成 NPE：
+## 版本对照（昨天以来）
 
-`ExponentFileSystem.getInfoAsync has been rejected → cannot be cast to InfoOptionsLegacy → NullPointerException`
+| 版本 | 改动 | 结果 |
+|------|------|------|
+| **旧可用** | 直接上传扫描/拍摄 URI | 正常 |
+| **2.7.2** | 仅跳过 Android `content://` 的 ensureNative/manipulator | **不够**：实测 URI 是 `file://…/mlkit_…`，仍进预处理 → NPE |
+| **2.7.3** | `getInfoAsync(uri, {})` | **无效**：传入 map 仍强转 `InfoOptionsLegacy` NPE；且 catch 仍 `throw` |
+| **2.7.4** | Android **整段跳过** `processImageForUpload` | 对症预处理；若仍失败 → 上传读字节/`spaceId`/或 Scanner 挂死 |
+| **2.7.5+（当前工作区）** | 上 + **Android 改系统相机** + `readLocalFileBytes` + `spaceId` 回退 + 调用方也 skip 预处理 | Metro 实测拍摄可识别；对齐旧可用上传路径 |
 
-→ catch 包装成 `Failed to process image` → UI `Failed to process expense`。  
-失败在**客户端预处理**，不是 RLS / 配额 / Gemini。
+## 已确认根因 A（商店 toast `Failed to process expense`）
 
-**修复（2.7.4）**：Android 上 **整段跳过** `processImageForUpload`（与相册一致，直接上传 ML Kit JPEG）。  
-次要：`getInfoAsync(uri, { md5: false })`；预处理失败时调用方回退原 URI，禁止抛成 Failed to process。  
-注意：仅传 `{}` 的 2.7.3 仍可能失败，不能当作已修复。
+**实测 URI**：`file:///…/mlkit_docscan_ui_client/….jpg`  
+**链**：`processImageForUpload` → `getInfoAsync` → InfoOptionsLegacy NPE → toast  
+**相册正常**：`fromGallery` 跳过预处理。
 
-## 相关注意
+## 已确认根因 B（dev Metro）
 
-| 因素 | 说明 |
-|------|------|
-| 触发链 | 相机扫描 → `processImageForUpload` → `getInfoAsync`（无 options）→ 抛错 |
-| 相册为何正常 | `fromGallery: true` **跳过** `processImageForUpload` |
-| HEIC/ImageManipulator | iOS 仍可能需要；Android 可跳过 manipulator，但 **2.7.2 实测致命点是 getInfoAsync** |
-| 误诊风险 | 只按 `content://`、membership heal、ResponseType.Base64、后端挂掉 都会偏题 |
+`opening DocumentScanner…` 后永无 `scanner returned`——插件在点击时 `register("document-scanner")`，Promise 不返回。
 
-## 诊断清单
+## 必须落地的完整修复（发版 checklist）
 
-1. Toast 是否来自 `processCapturedImages` 的 `Failed to process expense`（插入前失败）。
-2. 相册是否正常（跳过预处理）而相机失败 → 重点查 `processImageForUpload`。
-3. **USB logcat**（商店包）：过滤 `ReactNativeJS`，找 `getInfoAsync` / `InfoOptionsLegacy` / `Processing captured image`。
-4. 记下实测 URI（`file://…/mlkit_docscan_ui_client/…` 或 `content://`）。
-5. DB：报错时段有无新 `receipts`（无 → 客户端早期失败）。
+1. **Android 拍照**：`ImagePicker.launchCameraAsync`（首页 + receipts；iOS 可留 DocumentScanner）
+2. **Android 跳过预处理**：`processImageForUpload` early return **且** 调用方 `skipPreprocess = fromGallery \|\| android`
+3. **Android 跳过** `ensureNativeImageUriIsJpegForStorage` 的 ImageManipulator
+4. **上传**：`readLocalFileBytes`（安全 base64 解码 + `fetch` 兜底）
+5. **`spaceId`**：空则回退 `getCurrentUser().currentSpaceId`
 
-## 修复原则
+仅做 2.7.3「补 options」或仅 2.7.4「跳过预处理」都**不完整**。
 
-1. **必做**：`FileSystem.getInfoAsync(uri, {})` — 第二参不能省（Android legacy NPE）。
-2. Android 仍可跳过 `ensureNative` 的 ImageManipulator（iOS HEIC 保留）。
-3. 不要只按 `content://` 或 Scanner `responseType: 'base64'` 当唯一方案。
-4. 正式包须**重打 Android** 后验证。
+## 诊断
 
-## 关键代码
+USB logcat / Metro 找：`expense-debug`、`InfoOptionsLegacy`、`opening DocumentScanner`（无 returned = 根因 B）、`system camera`、`upload ok`。  
+用 **preview/dev APK + Metro**，不要靠连发 production 试错。
 
-- `apps/vouchap-app/src/shared-logic/image-processor.ts` → `processImageForUpload`
-- `apps/vouchap-app/src/shared-logic/supabase.ts` → `ensureNativeImageUriIsJpegForStorage`
-- `apps/vouchap-app/src/mobile-ui/app/index.tsx` → `scanDocument` / `processCapturedImages`
-- 同源：`apps/portalflow-app/...` 对应文件
+## 相关代码
 
-## 反模式
-
-- 因 iOS HEIC 修复而对 Android `content://` 无差别跑 ImageManipulator
-- 后端探测成功就断定「识别服务坏了」
-- 用新上传方案替代已验证的直接读 URI 上传，而未证明旧路径不可恢复
+- `apps/vouchap-app/src/shared-logic/image-processor.ts`
+- `apps/vouchap-app/src/shared-logic/supabase.ts`
+- `apps/vouchap-app/src/mobile-ui/app/index.tsx` / `receipts.tsx`
+- 同源：`apps/portalflow-app/...`、`packages/product-app/...`
