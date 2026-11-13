@@ -35,3 +35,10 @@ test-*.js
 *.bak
 *.backup
 
+
+# Local EAS production signing (never commit)
+credentials.json
+credentials/
+*.keystore
+android/keystore.properties
+*.aab
