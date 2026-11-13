@@ -10,40 +10,48 @@ description: >-
 
 # Android content:// 图片链路（拍小票）
 
-## 已确认根因（Vouchap Android）
+## 已确认根因（Vouchap Android，logcat 实测）
 
-**现象**：Android 正式版拍小票立刻 toast `Failed to process expense`；库里无新 `input_type=camera` 记录；Storage / gemini-proxy 探测正常。
+**现象**：Android 正式版拍小票立刻 toast `Failed to process expense`；库里无新 `input_type=camera` 记录；Storage / gemini-proxy / 相册上传正常。
 
-**根因**：Android DocumentScanner（ML Kit）返回 **`content://` URI**。拍后链路却按本地 **`file://` / iOS HEIC** 处理：
+**实测 URI**（vivo / ML Kit）：  
+`file:///data/user/0/com.vouchap.app/cache/mlkit_docscan_ui_client/….jpg`  
+（不一定是 `content://`；勿只按 content 方案修。）
 
-1. `processCapturedImages`（非相册）→ `processImageForUpload` → `FileSystem.getInfoAsync` + `ImageManipulator.manipulateAsync`
-2. 上传前 → `ensureNativeImageUriIsJpegForStorage` → 再次 `ImageManipulator`
+**根因**：`processImageForUpload` 调用  
+`FileSystem.getInfoAsync(uri)`（**未传 options**）。  
+`expo-file-system/legacy` 在 Android 上会把缺失的第 2 参打成 NPE：
 
-`content://` 上这两步易失败（exists=false / manipulate 抛错）→ `catch` 统一成 `Failed to process expense`。失败发生在**客户端读图**，不是 RLS、配额、Gemini。
+`ExponentFileSystem.getInfoAsync has been rejected → cannot be cast to InfoOptionsLegacy → NullPointerException`
 
-## 为何会变成 Android 专属问题
+→ catch 包装成 `Failed to process image` → UI `Failed to process expense`。  
+失败在**客户端预处理**，不是 RLS / 配额 / Gemini。
+
+**修复**：所有 `getInfoAsync` 显式传第二参 `{}`，例如 `getInfoAsync(uri, {})`。
+
+## 相关注意
 
 | 因素 | 说明 |
 |------|------|
-| 触发源 | `react-native-document-scanner-plugin` 在 Android 默认把裁剪页以 `content://` 字符串放进 `scannedImages` |
-| 历史改动 | `ensureNativeImageUriIsJpegForStorage` 为 **iOS HEIC 误标 JPEG** 引入，却对**全部原生端**强制转 JPEG |
-| 平台差异 | Android 扫描/相机本已是 JPEG；此前可用路径是 **直接 `FileSystem.readAsStringAsync` 上传**，不经 ImageManipulator |
-| 误诊风险 | Web/孤儿 space、membership heal、加长 toast、Scanner `ResponseType.Base64` 都是旁路，不是恢复原可用方案 |
+| 触发链 | 相机扫描 → `processImageForUpload` → `getInfoAsync`（无 options）→ 抛错 |
+| 相册为何正常 | `fromGallery: true` **跳过** `processImageForUpload` |
+| HEIC/ImageManipulator | iOS 仍可能需要；Android 可跳过 manipulator，但 **2.7.2 实测致命点是 getInfoAsync** |
+| 误诊风险 | 只按 `content://`、membership heal、ResponseType.Base64、后端挂掉 都会偏题 |
 
 ## 诊断清单
 
-1. Toast 是否来自 `processCapturedImages` / `receipts` 的 `Failed to process expense`（插入前失败）。
-2. 是否仅 Android 相机/扫描；相册 `file://` 或 Web 是否正常。
-3. 后端：同一项目 Storage 上传 + `gemini-proxy` 是否 OK。
-4. DB：报错时段有无新 `receipts`（无 → 客户端早期失败）。
-5. 代码：对扫描 URI 是否无条件调用 `getInfoAsync` / `manipulateAsync`。
+1. Toast 是否来自 `processCapturedImages` 的 `Failed to process expense`（插入前失败）。
+2. 相册是否正常（跳过预处理）而相机失败 → 重点查 `processImageForUpload`。
+3. **USB logcat**（商店包）：过滤 `ReactNativeJS`，找 `getInfoAsync` / `InfoOptionsLegacy` / `Processing captured image`。
+4. 记下实测 URI（`file://…/mlkit_docscan_ui_client/…` 或 `content://`）。
+5. DB：报错时段有无新 `receipts`（无 → 客户端早期失败）。
 
-## 修复原则（恢复，不另生变数）
+## 修复原则
 
-1. **Android**：跳过 `ensureNativeImageUriIsJpegForStorage` 的 ImageManipulator（保留 iOS HEIC）。
-2. **Android `content://`**：`processImageForUpload` 直接返回原 URI，走此前直接上传。
-3. **不要**先发明 Scanner `responseType: 'base64'`、space membership 自动 heal、或把 error.message 拼进用户 toast 当作主修复。
-4. 正式包须**重打 Android** 后验证；仅改 JS 未发商店包则用户仍见旧行为。
+1. **必做**：`FileSystem.getInfoAsync(uri, {})` — 第二参不能省（Android legacy NPE）。
+2. Android 仍可跳过 `ensureNative` 的 ImageManipulator（iOS HEIC 保留）。
+3. 不要只按 `content://` 或 Scanner `responseType: 'base64'` 当唯一方案。
+4. 正式包须**重打 Android** 后验证。
 
 ## 关键代码
 

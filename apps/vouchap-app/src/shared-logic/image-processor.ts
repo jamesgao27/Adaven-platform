@@ -413,7 +413,8 @@ export async function processImageForUpload(
     let retries = 3;
     while (retries > 0) {
       try {
-        fileInfo = await FileSystem.getInfoAsync(imageUri) as { exists: boolean; size?: number };
+        // Expo FileSystem legacy on Android NPE if options omitted (InfoOptionsLegacy cast).
+        fileInfo = await FileSystem.getInfoAsync(imageUri, {}) as { exists: boolean; size?: number };
         if (fileInfo.exists) {
           break;
         }
@@ -545,7 +546,7 @@ export async function processImageForUpload(
     console.log('图片处理完成:', manipulatedImage.uri);
 
     // 4. 检查文件大小，如果仍然太大，进一步压缩
-    const manipulatedFileInfo = await FileSystem.getInfoAsync(manipulatedImage.uri);
+    const manipulatedFileInfo = await FileSystem.getInfoAsync(manipulatedImage.uri, {});
     if (manipulatedFileInfo.exists && manipulatedFileInfo.size && manipulatedFileInfo.size > MAX_FILE_SIZE) {
       console.log('文件仍然太大，进一步压缩:', manipulatedFileInfo.size, 'bytes');
       
@@ -564,7 +565,7 @@ export async function processImageForUpload(
           }
         );
         
-        const furtherInfo = await FileSystem.getInfoAsync(furtherCompressed.uri);
+        const furtherInfo = await FileSystem.getInfoAsync(furtherCompressed.uri, {});
         if (furtherInfo.exists && furtherInfo.size && furtherInfo.size <= MAX_FILE_SIZE) {
           // 删除之前的临时文件
           try {
@@ -598,7 +599,7 @@ export async function processImageForUpload(
     
     // 如果预处理失败，尝试检查文件是否存在
     try {
-      const fileInfo = await FileSystem.getInfoAsync(imageUri);
+      const fileInfo = await FileSystem.getInfoAsync(imageUri, {});
       if (!fileInfo.exists) {
         throw new Error(`Image file does not exist: ${imageUri}`);
       }

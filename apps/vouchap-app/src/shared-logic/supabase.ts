@@ -248,17 +248,30 @@ export async function uploadReceiptImageTempWithSpace(
   fileOpts?: { fileName?: string; mimeType?: string }
 ): Promise<string> {
   try {
+    console.log('[expense-debug] upload start', {
+      platform: Platform.OS,
+      uriPrefix: String(fileUri).slice(0, 64),
+      spaceId,
+      encodingType: FileSystem.EncodingType?.Base64,
+    });
     const normalizedUri = await ensureNativeImageUriIsJpegForStorage(fileUri, fileOpts);
+    console.log('[expense-debug] after ensureNative', String(normalizedUri).slice(0, 64));
     let arrayBuffer: ArrayBuffer | Uint8Array;
     if (Platform.OS === 'web') {
       const res = await fetch(normalizedUri);
       if (!res.ok) throw new Error(`Failed to fetch file: ${res.status}`);
       arrayBuffer = await res.arrayBuffer();
     } else {
-      const base64 = await FileSystem.readAsStringAsync(normalizedUri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      arrayBuffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+      try {
+        const base64 = await FileSystem.readAsStringAsync(normalizedUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        console.log('[expense-debug] readAsStringAsync ok, base64 len', base64?.length);
+        arrayBuffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+      } catch (readErr) {
+        console.error('[expense-debug] readAsStringAsync failed', readErr);
+        throw readErr;
+      }
     }
 
     const { ext: fileExt, mimeType } = fileOpts

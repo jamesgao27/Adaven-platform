@@ -191,7 +191,7 @@ export async function uploadAudioFile(localUri: string): Promise<string | null> 
     const FileSystem = require('expo-file-system/legacy');
     
     // 检查文件是否存在
-    const fileInfo = await FileSystem.getInfoAsync(localUri);
+    const fileInfo = await FileSystem.getInfoAsync(localUri, {});
     console.log('File info:', JSON.stringify(fileInfo));
     
     if (!fileInfo.exists) {

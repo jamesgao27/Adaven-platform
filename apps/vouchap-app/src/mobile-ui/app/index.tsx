@@ -718,15 +718,29 @@ export default function HomeScreen() {
         }
 
         console.log(`Processing captured image ${i + 1}/${uris.length} (${type}):`, imageUri, 'fromGallery:', fromGallery);
+        console.log('[expense-debug] uri scheme/prefix:', String(imageUri).slice(0, 48), 'space:', currentSpace?.id, currentSpace?.kind);
 
         let uriToUpload = imageUri;
         if (!fromGallery) {
-          uriToUpload = await processImageForUpload(imageUri, { autoCrop, quality: 0.85 });
+          try {
+            uriToUpload = await processImageForUpload(imageUri, { autoCrop, quality: 0.85 });
+            console.log('[expense-debug] after processImageForUpload:', String(uriToUpload).slice(0, 80));
+          } catch (preprocessErr) {
+            console.error('[expense-debug] processImageForUpload failed:', preprocessErr);
+            throw preprocessErr;
+          }
         }
 
         const tempFileName = `temp-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 9)}`;
         const spaceId = currentSpace?.id ?? '';
-        const imageUrl = await uploadReceiptImageTempWithSpace(uriToUpload, tempFileName, spaceId);
+        let imageUrl: string;
+        try {
+          imageUrl = await uploadReceiptImageTempWithSpace(uriToUpload, tempFileName, spaceId);
+          console.log('[expense-debug] upload ok:', imageUrl?.slice?.(0, 80));
+        } catch (uploadErr) {
+          console.error('[expense-debug] uploadReceiptImageTempWithSpace failed:', uploadErr);
+          throw uploadErr;
+        }
 
         if (type === 'invoice') {
           const invoiceId = await createProcessingInvoice({
@@ -750,6 +764,10 @@ export default function HomeScreen() {
         }
       } catch (error) {
         console.error('Processing error:', error);
+        console.error(
+          '[expense-debug] Processing error detail:',
+          error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : error
+        );
         hadError = true;
         showToast(
           uris.length > 1
