@@ -1,7 +1,7 @@
 {
   "configVersion": 0,
   "apple": {
-    "version": "2.7.1",
+    "version": "2.7.5",
     "copyright": "© 2026 Adaven consulting inc.",
     "release": {
       "automaticRelease": true
@@ -22,7 +22,7 @@
           "Voice",
           "Scanner"
         ],
-        "releaseNotes": "Optimized mobile file preview and fixed known bugs.",
+        "releaseNotes": "Fixed Android receipt snapping (Failed to process expense). Improved Google sign-in on iOS and Android. Updated Privacy Policy link.",
         "marketingUrl": "https://vouchap.com",
         "supportUrl": "https://vouchap.com",
         "title": "Vouchap",

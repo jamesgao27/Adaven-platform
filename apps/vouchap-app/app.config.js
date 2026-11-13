@@ -47,7 +47,7 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.vouchap.app",
-      buildNumber: "59",
+      buildNumber: "60",
       associatedDomains: ["applinks:vouchap.com"]
     },
     android: {

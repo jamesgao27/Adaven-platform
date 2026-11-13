@@ -26,7 +26,7 @@ description: >-
 | **2.7.2** | 仅跳过 Android `content://` 的 ensureNative/manipulator | **不够**：实测 URI 是 `file://…/mlkit_…`，仍进预处理 → NPE |
 | **2.7.3** | `getInfoAsync(uri, {})` | **无效**：传入 map 仍强转 `InfoOptionsLegacy` NPE；且 catch 仍 `throw` |
 | **2.7.4** | Android **整段跳过** `processImageForUpload` | 对症预处理；若仍失败 → 上传读字节/`spaceId`/或 Scanner 挂死 |
-| **2.7.5+（当前工作区）** | 上 + **Android 改系统相机** + `readLocalFileBytes` + `spaceId` 回退 + 调用方也 skip 预处理 | Metro 实测拍摄可识别；对齐旧可用上传路径 |
+| **2.7.5（商店）** | 上 + **Android 改系统相机** + `readLocalFileBytes` + `spaceId` 回退 + 首页/receipts 调用方 skip 预处理 | Metro 实测拍摄可识别；发版前复核 checklist 全绿 |
 
 ## 已确认根因 A（商店 toast `Failed to process expense`）
 

@@ -424,8 +424,14 @@ export default function ReceiptsScreen() {
         const spaceId = user?.currentSpaceId || user?.spaceId || '';
         let imageUrl: string;
         let uriForBackground: string;
-        if (fromGallery) {
-          console.log('🔄 [processCapturedImage] 相册/选择文件，直接上传原图');
+        // Android: same as gallery / home snap — skip preprocess (getInfoAsync NPE on SDK 54).
+        const skipPreprocess = fromGallery || Platform.OS === 'android';
+        if (skipPreprocess) {
+          console.log(
+            fromGallery
+              ? '🔄 [processCapturedImage] 相册/选择文件，直接上传原图'
+              : '[expense-debug] Android camera: skip preprocess, upload URI directly'
+          );
           imageUrl = await uploadReceiptImageTempWithSpace(imageUri, tempFileName, spaceId);
           uriForBackground = imageUri;
         } else {
