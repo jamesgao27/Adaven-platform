@@ -141,11 +141,15 @@ export function ThirdPartyAuthButtons({
         onError?.(error?.message || `${LABELS[provider]} failed to start.`);
         return;
       }
-      const result = await WebBrowser.openAuthSessionAsync(url, redirectTo, {
-        showInRecents: true,
-        preferEphemeralSession: Platform.OS === 'ios',
-        createTask: Platform.OS === 'android',
-      });
+      // Android uses a Custom Tabs polyfill that maps options → OpenBrowserOptions.
+      // Keep the payload minimal; exotic flags have triggered ReadableNativeMap cast NPEs under R8.
+      const result = await WebBrowser.openAuthSessionAsync(
+        url,
+        redirectTo,
+        Platform.OS === 'ios'
+          ? { preferEphemeralSession: true, showInRecents: true }
+          : { showInRecents: true, createTask: true }
+      );
       if (result.type === 'cancel' || result.type === 'dismiss') {
         onError?.('Sign-in was cancelled.');
         return;

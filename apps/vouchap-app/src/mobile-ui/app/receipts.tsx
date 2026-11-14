@@ -287,25 +287,6 @@ export default function ReceiptsScreen() {
     setRefreshing(false);
   }, [loadDetailsAsync]);
 
-  const captureWithSystemCamera = async () => {
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permission.granted) {
-      showToast('Camera permission is required to snap receipts.', 'error');
-      return;
-    }
-    console.log('[expense-debug] opening system camera…');
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: false,
-      quality: 0.9,
-    });
-    if (result.canceled || !result.assets?.length) {
-      console.log('[expense-debug] system camera canceled');
-      return;
-    }
-    processCapturedImage(result.assets[0].uri, false, false);
-  };
-
   const scanDocument = async () => {
     console.log('📷 [scanDocument] 开始调用文档扫描...');
     if (isExpoGo) {
@@ -321,17 +302,6 @@ export default function ReceiptsScreen() {
 
     const pre = await runClientRecognitionPreflight();
     if (!pre) return;
-
-    // Android: DocumentScanner ActivityResult promise can hang; system camera matches gallery upload path.
-    if (Platform.OS === 'android') {
-      try {
-        await captureWithSystemCamera();
-      } catch (error) {
-        console.error('[expense-debug] system camera error:', error);
-        showToast('Failed to snap document. Please try again.', 'error');
-      }
-      return;
-    }
 
     try {
       console.log('📷 [scanDocument] 动态导入 DocumentScanner 模块...');
@@ -424,24 +394,13 @@ export default function ReceiptsScreen() {
         const spaceId = user?.currentSpaceId || user?.spaceId || '';
         let imageUrl: string;
         let uriForBackground: string;
-        // Android: same as gallery / home snap — skip preprocess (getInfoAsync NPE on SDK 54).
-        const skipPreprocess = fromGallery || Platform.OS === 'android';
-        if (skipPreprocess) {
-          console.log(
-            fromGallery
-              ? '🔄 [processCapturedImage] 相册/选择文件，直接上传原图'
-              : '[expense-debug] Android camera: skip preprocess, upload URI directly'
-          );
+        if (fromGallery) {
+          console.log('🔄 [processCapturedImage] 相册/选择文件，直接上传原图');
           imageUrl = await uploadReceiptImageTempWithSpace(imageUri, tempFileName, spaceId);
           uriForBackground = imageUri;
         } else {
           console.log('🔄 [processCapturedImage] 实时拍摄/扫描，进行边缘识别与裁剪优化');
-          let processedImageUri = imageUri;
-          try {
-            processedImageUri = await processImageForUpload(imageUri, { autoCrop, quality: 0.85 });
-          } catch (preprocessErr) {
-            console.error('[processCapturedImage] preprocess failed, using original URI:', preprocessErr);
-          }
+          const processedImageUri = await processImageForUpload(imageUri, { autoCrop, quality: 0.85 });
           imageUrl = await uploadReceiptImageTempWithSpace(processedImageUri, tempFileName, spaceId);
           uriForBackground = processedImageUri;
         }

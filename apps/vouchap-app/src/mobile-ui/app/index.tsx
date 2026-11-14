@@ -561,34 +561,6 @@ export default function HomeScreen() {
     }
   };
 
-  const captureWithSystemCamera = async (type: 'receipt' | 'invoice' = 'receipt') => {
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permission.granted) {
-      showToast('Camera permission is required to snap receipts.', 'error');
-      return;
-    }
-    console.log('[expense-debug] opening system camera…');
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: false,
-      quality: 0.9,
-    });
-    if (result.canceled || !result.assets?.length) {
-      console.log('[expense-debug] system camera canceled');
-      return;
-    }
-    console.log(
-      '[expense-debug] system camera uri:',
-      String(result.assets[0].uri).slice(0, 64)
-    );
-    void processCapturedImages(
-      result.assets.map((a) => a.uri),
-      false,
-      false,
-      type
-    );
-  };
-
   const scanDocument = async (type: 'receipt' | 'invoice' = 'receipt') => {
     // If we are in Expo Go, we can't use the native scanner
     if (isExpoGo) {
@@ -619,25 +591,12 @@ export default function HomeScreen() {
       return;
     }
 
-    // Android: ML Kit DocumentScanner registers ActivityResultLauncher at call-time; on
-    // several OEM / RN hosts the JS promise never resolves after the UI closes (Metro
-    // showed "opening DocumentScanner…" with no "scanner returned"). System camera uses
-    // the same upload path as gallery and returns reliably.
-    if (Platform.OS === 'android') {
-      try {
-        await captureWithSystemCamera(type);
-      } catch (error) {
-        console.error('[expense-debug] system camera error:', error);
-        showToast('Failed to snap document. Please try again.', 'error');
-      }
-      return;
-    }
-
     try {
       // 动态导入 DocumentScanner（只在非 Expo Go 环境中导入）
+      // Android ML Kit SCANNER_MODE_FULL / iOS VisionKit：自动拍摄、边缘裁剪、对比加强
       const module = await import('react-native-document-scanner-plugin');
       const DocumentScanner = module?.default;
-      
+
       // 额外防御：模块导入但没有正确挂载时，直接提示使用开发构建
       if (!DocumentScanner || typeof DocumentScanner.scanDocument !== 'function') {
         throw new Error('DocumentScanner module not loaded correctly');
@@ -647,28 +606,19 @@ export default function HomeScreen() {
         croppedImageQuality: 90,
         letUserAdjustCrop: false,
       };
+      if (Platform.OS === 'android') {
+        scanOptions.maxNumDocuments = MAX_CAPTURE_BATCH;
+      }
 
-      console.log('[expense-debug] opening DocumentScanner…');
-      const scanResult = await DocumentScanner.scanDocument(scanOptions as any);
-      const scannedImages = scanResult?.scannedImages;
-      console.log(
-        '[expense-debug] scanner returned',
-        scannedImages?.length ?? 0,
-        'status:',
-        (scanResult as { status?: string })?.status,
-        'uri0:',
-        scannedImages?.[0] ? String(scannedImages[0]).slice(0, 64) : '(none)'
-      );
+      const { scannedImages } = await DocumentScanner.scanDocument(scanOptions as any);
 
       if (scannedImages && scannedImages.length > 0) {
         // iOS VisionKit / Android：支持一次会话内多页；依次识别、逐条入库
+        // 扫描结果原生已裁，autoCrop=false（与 Vouchap-261109backup 一致）
         void processCapturedImages(scannedImages, false, false, type);
-      } else {
-        console.warn('[expense-debug] scanner returned no images (cancel or empty)');
       }
     } catch (error) {
       console.error('Document scan error:', error);
-      console.error('[expense-debug] Document scan error detail:', error instanceof Error ? error.message : error);
       // 如果是模块未找到错误，提示使用开发构建
       if (error instanceof Error && error.message?.includes('TurboModuleRegistry')) {
         showChoiceDialog(
@@ -770,22 +720,12 @@ export default function HomeScreen() {
         }
 
         console.log(`Processing captured image ${i + 1}/${uris.length} (${type}):`, imageUri, 'fromGallery:', fromGallery);
-        console.log('[expense-debug] uri scheme/prefix:', String(imageUri).slice(0, 48), 'space:', currentSpace?.id, currentSpace?.kind);
 
-        // Android: same as gallery — DocumentScanner already yields JPEG; preprocess hits
-        // broken expo-file-system legacy getInfoAsync (InfoOptionsLegacy NPE).
+        // 与备份一致：相册直接上传；扫描/拍摄走 processImageForUpload
+        //（Android 在 image-processor 内 early-return，避免 getInfoAsync NPE）
         let uriToUpload = imageUri;
-        const skipPreprocess = fromGallery || Platform.OS === 'android';
-        if (!skipPreprocess) {
-          try {
-            uriToUpload = await processImageForUpload(imageUri, { autoCrop, quality: 0.85 });
-            console.log('[expense-debug] after processImageForUpload:', String(uriToUpload).slice(0, 80));
-          } catch (preprocessErr) {
-            console.error('[expense-debug] processImageForUpload failed, using original URI:', preprocessErr);
-            uriToUpload = imageUri;
-          }
-        } else if (Platform.OS === 'android' && !fromGallery) {
-          console.log('[expense-debug] Android camera: skip preprocess, upload scanner URI directly');
+        if (!fromGallery) {
+          uriToUpload = await processImageForUpload(imageUri, { autoCrop, quality: 0.85 });
         }
 
         const tempFileName = `temp-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 9)}`;

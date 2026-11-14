@@ -591,40 +591,12 @@ export default function HomeScreen() {
       return;
     }
 
-    // Android: DocumentScanner ActivityResult promise can hang on OEM/RN hosts.
-    // System camera returns reliably and uses the same upload path as gallery.
-    if (Platform.OS === 'android') {
-      try {
-        const permission = await ImagePicker.requestCameraPermissionsAsync();
-        if (!permission.granted) {
-          showToast('Camera permission is required to snap receipts.', 'error');
-          return;
-        }
-        const result = await ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          allowsEditing: false,
-          quality: 0.9,
-        });
-        if (!result.canceled && result.assets?.length) {
-          void processCapturedImages(
-            result.assets.map((a) => a.uri),
-            false,
-            false,
-            type
-          );
-        }
-      } catch (error) {
-        console.error('Document scan error:', error);
-        showToast('Failed to snap document. Please try again.', 'error');
-      }
-      return;
-    }
-
     try {
       // 动态导入 DocumentScanner（只在非 Expo Go 环境中导入）
+      // Android ML Kit SCANNER_MODE_FULL / iOS VisionKit：自动拍摄、边缘裁剪、对比加强
       const module = await import('react-native-document-scanner-plugin');
       const DocumentScanner = module?.default;
-      
+
       // 额外防御：模块导入但没有正确挂载时，直接提示使用开发构建
       if (!DocumentScanner || typeof DocumentScanner.scanDocument !== 'function') {
         throw new Error('DocumentScanner module not loaded correctly');
@@ -634,6 +606,9 @@ export default function HomeScreen() {
         croppedImageQuality: 90,
         letUserAdjustCrop: false,
       };
+      if (Platform.OS === 'android') {
+        scanOptions.maxNumDocuments = MAX_CAPTURE_BATCH;
+      }
 
       const { scannedImages } = await DocumentScanner.scanDocument(scanOptions as any);
 
@@ -745,15 +720,11 @@ export default function HomeScreen() {
 
         console.log(`Processing captured image ${i + 1}/${uris.length} (${type}):`, imageUri, 'fromGallery:', fromGallery);
 
+        // 与备份一致：相册直接上传；扫描/拍摄走 processImageForUpload
+        //（Android 在 image-processor 内 early-return，避免 getInfoAsync NPE）
         let uriToUpload = imageUri;
-        const skipPreprocess = fromGallery || Platform.OS === 'android';
-        if (!skipPreprocess) {
-          try {
-            uriToUpload = await processImageForUpload(imageUri, { autoCrop, quality: 0.85 });
-          } catch (preprocessErr) {
-            console.error('[expense-debug] processImageForUpload failed, using original URI:', preprocessErr);
-            uriToUpload = imageUri;
-          }
+        if (!fromGallery) {
+          uriToUpload = await processImageForUpload(imageUri, { autoCrop, quality: 0.85 });
         }
 
         const tempFileName = `temp-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 9)}`;

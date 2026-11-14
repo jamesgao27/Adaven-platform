@@ -11,4 +11,18 @@
 -keep class com.swmansion.reanimated.** { *; }
 -keep class com.facebook.react.turbomodule.** { *; }
 
+# Expo Modules / Sweet API Records (R8 fullMode otherwise breaks JS→Kotlin cast:
+# "cannot be cast to type …OpenBrowserOptions (received ReadableNativeMap)" + NPE)
+-keepattributes *Annotation*, Signature, InnerClasses, EnclosingMethod
+-keep class expo.modules.** { *; }
+-keepclassmembers class expo.modules.** { *; }
+-keep class * implements expo.modules.kotlin.records.Record { *; }
+-keepclassmembers class * implements expo.modules.kotlin.records.Record {
+  <init>(...);
+  *;
+}
+-keepclassmembers class * {
+  @expo.modules.kotlin.records.Field *;
+}
+
 # Add any project specific keep options here:

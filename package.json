@@ -21,9 +21,13 @@
     "wholestore:start": "npm run start --workspace=wholestore-app",
     "wholestore:web": "npm run web --workspace=wholestore-app",
     "wholestore:export:web": "npm run web:export --workspace=wholestore-app",
-    "wholestore:deploy:web": "npm run deploy:web --workspace=wholestore-app"
+    "wholestore:deploy:web": "npm run deploy:web --workspace=wholestore-app",
+    "postinstall": "patch-package || true"
   },
   "dependencies": {
     "react-native-worklets": "0.5.1"
+  },
+  "devDependencies": {
+    "patch-package": "^8.0.1"
   }
 }

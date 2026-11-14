@@ -26,7 +26,8 @@ description: >-
 | **2.7.2** | 仅跳过 Android `content://` 的 ensureNative/manipulator | **不够**：实测 URI 是 `file://…/mlkit_…`，仍进预处理 → NPE |
 | **2.7.3** | `getInfoAsync(uri, {})` | **无效**：传入 map 仍强转 `InfoOptionsLegacy` NPE；且 catch 仍 `throw` |
 | **2.7.4** | Android **整段跳过** `processImageForUpload` | 对症预处理；若仍失败 → 上传读字节/`spaceId`/或 Scanner 挂死 |
-| **2.7.5（商店）** | 上 + **Android 改系统相机** + `readLocalFileBytes` + `spaceId` 回退 + 首页/receipts 调用方 skip 预处理 | Metro 实测拍摄可识别；发版前复核 checklist 全绿 |
+| **可用备份（Vouchap-261109backup）** | 双端 **`DocumentScanner.scanDocument`**：`croppedImageQuality: 90`、`letUserAdjustCrop: false`、Android `maxNumDocuments`；扫描后 `processCapturedImages(..., false, false)`；**不用系统相机** | 自动拍摄 / 边缘裁剪 / 对比加强 |
+| **错误绕开** | 曾把 Android 改成 `ImagePicker.launchCameraAsync` | 丢失扫描体验 — **已按备份撤回** |
 
 ## 已确认根因 A（商店 toast `Failed to process expense`）
 
@@ -38,20 +39,30 @@ description: >-
 
 `opening DocumentScanner…` 后永无 `scanner returned`——插件在点击时 `register("document-scanner")`，Promise 不返回。
 
+## 已确认根因 C（商店 minify + R8 fullMode：连系统相机都打不开）
+
+`enableMinifyInReleaseBuilds=true` 且 AGP 默认 `android.enableR8.fullMode=true` 时，Expo Modules Sweet API 的 `Record`/`@Field` 元数据被剥掉：
+
+- Google：`openBrowserAsync` → `OpenBrowserOptions` cast NPE（ReadableNativeMap）
+- 拍照：`launchCameraAsync` → **`ImagePickerOptions` 同类 cast NPE** → 表现为点拍摄无相机界面
+
+**修复**：`android.enableR8.fullMode=false` + `proguard-rules.pro` keep `expo.modules.**` / `Record` / `@Field`。发版前用 **本地 release APK** USB 点一次拍摄确认能进 `com.android.camera`。
+
 ## 必须落地的完整修复（发版 checklist）
 
-1. **Android 拍照**：`ImagePicker.launchCameraAsync`（首页 + receipts；iOS 可留 DocumentScanner）
-2. **Android 跳过预处理**：`processImageForUpload` early return **且** 调用方 `skipPreprocess = fromGallery \|\| android`
-3. **Android 跳过** `ensureNativeImageUriIsJpegForStorage` 的 ImageManipulator
-4. **上传**：`readLocalFileBytes`（安全 base64 解码 + `fetch` 兜底）
-5. **`spaceId`**：空则回退 `getCurrentUser().currentSpaceId`
+1. **拍照入口（对照备份）**：`DocumentScanner.scanDocument`（插件内 Android=`SCANNER_MODE_FULL`）— **禁止**用系统相机替代主路径
+2. **选项**：`croppedImageQuality: 90`、`letUserAdjustCrop: false`；首页 Android 另加 `maxNumDocuments`；扫描回调 `autoCrop=false`
+3. **Android 跳过预处理**：在 **`image-processor.processImageForUpload`** 内 early return（调用方仍按备份写 `if (!fromGallery) processImageForUpload`）
+4. **Android 跳过** `ensureNativeImageUriIsJpegForStorage` 的 ImageManipulator
+5. **上传**：`readLocalFileBytes`；**`spaceId`** 空则回退 `getCurrentUser().currentSpaceId`
+6. **Release R8**：`fullMode=false` + Expo Record keep（Google/`ImagePickerOptions`）
 
-仅做 2.7.3「补 options」或仅 2.7.4「跳过预处理」都**不完整**。
+事实来源：`Vouchap-261109backup/vouchap-app/.../index.tsx` + `receipts.tsx`。不要用系统相机「绕开」猜测方案。
 
 ## 诊断
 
-USB logcat / Metro 找：`expense-debug`、`InfoOptionsLegacy`、`opening DocumentScanner`（无 returned = 根因 B）、`system camera`、`upload ok`。  
-用 **preview/dev APK + Metro**，不要靠连发 production 试错。
+USB logcat / Metro 找：`expense-debug`、`InfoOptionsLegacy`、`opening DocumentScanner`（无 returned = 根因 B）、`system camera`、`upload ok`、`ImagePickerOptions` / `ReadableNativeMap` / `OpenBrowserOptions`。  
+用 **preview/dev APK + Metro**，不要靠连发 production 试错。Play Console 远端崩溃日志默认不可见，以 USB `adb logcat` 为准。
 
 ## 相关代码
 

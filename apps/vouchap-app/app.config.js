@@ -47,12 +47,12 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.vouchap.app",
-      buildNumber: "60",
+      buildNumber: "62",
       associatedDomains: ["applinks:vouchap.com"]
     },
     android: {
       package: "com.vouchap.app",
-      versionCode: 78,
+      versionCode: 81,
       permissions: [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
