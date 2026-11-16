@@ -1,0 +1,14 @@
+{
+  "name": "@adaven/platform-erp",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "test": "npx --yes vitest run --config vitest.config.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.1.3",
+    "vitest": "^3.0.0"
+  }
+}

@@ -343,18 +343,26 @@ export default function SpaceMembersScreen() {
     setInviteEmail('');
     setInviting(true);
 
-    // 创建邀请
-    const { invitation, error } = await createInvitation(emailToInvite);
+    const { error, emailSent, emailError } = await createInvitation(emailToInvite);
     setInviting(false);
 
     if (error) {
-      // 如果失败，从列表中移除临时项
       setPendingInvitations(prev => prev.filter(inv => inv.id !== tempInvitation.id));
-      showToast(error.message || 'Failed to send invitation', 'error');
+      showToast(error.message || 'Failed to send invitation', 'error', 3500);
+      return;
+    }
+
+    setPendingInvitations(prev => prev.filter(inv => inv.id !== tempInvitation.id));
+    loadInvitationsOnly();
+
+    if (emailSent) {
+      showToast(`Invitation sent to ${emailToInvite}`, 'success', 3500);
     } else {
-      // 成功：移除临时项，然后加载最新邀请列表（这会用真实的邀请数据替换）
-      setPendingInvitations(prev => prev.filter(inv => inv.id !== tempInvitation.id));
-      loadInvitationsOnly(); // 加载真实的邀请数据
+      showToast(
+        emailError || `Invitation saved for ${emailToInvite}, but email was not sent.`,
+        'error',
+        4000
+      );
     }
   };
 

@@ -55,3 +55,13 @@ export async function uploadUserLogo(fileUri: string, userId: string): Promise<s
   const folder = userId?.trim() || 'unknown';
   return uploadJpegToMarketplace(`${folder}/user_logo/user_logo.jpg`, fileUri);
 }
+
+/** Showcase band image → marketplace/poster/{posterId}/{band}.jpg */
+export async function uploadShowcaseBandImage(
+  fileUri: string,
+  posterId: string,
+  band: 'top' | 'bottom',
+): Promise<string> {
+  const id = posterId?.trim() || 'unknown';
+  return uploadJpegToMarketplace(`poster/${id}/${band}.jpg`, fileUri);
+}

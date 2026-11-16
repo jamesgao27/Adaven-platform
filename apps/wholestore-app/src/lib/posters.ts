@@ -7,6 +7,9 @@ export type ProviderPoster = {
   name: string;
   description: string | null;
   imageUrl: string | null;
+  accentColor: string | null;
+  topImageUrl: string | null;
+  bottomImageUrl: string | null;
   isPublished: boolean;
   isMarketplaceFeatured: boolean;
   isSystemDefault: boolean;
@@ -26,6 +29,9 @@ function mapPoster(row: Record<string, any>, skuIds: string[] = []): ProviderPos
     name: row.name ?? '',
     description: row.description ?? null,
     imageUrl: row.image_url ?? null,
+    accentColor: row.accent_color ?? null,
+    topImageUrl: row.top_image_url ?? null,
+    bottomImageUrl: row.bottom_image_url ?? null,
     isPublished: row.is_published === true,
     isMarketplaceFeatured: row.is_marketplace_featured === true,
     isSystemDefault: row.is_system_default === true,
@@ -82,7 +88,7 @@ export async function getPoster(id: string): Promise<ProviderPoster | null> {
   return mapPoster(data, skuMap.get(id) ?? []);
 }
 
-export async function createPoster(providerSpaceId: string, name = 'New poster'): Promise<ProviderPoster> {
+export async function createPoster(providerSpaceId: string, name = 'New showcase'): Promise<ProviderPoster> {
   const { data, error } = await db()
     .from('posters')
     .insert({
@@ -91,6 +97,7 @@ export async function createPoster(providerSpaceId: string, name = 'New poster')
       is_published: false,
       is_marketplace_featured: false,
       is_system_default: false,
+      accent_color: '#6C5CE7',
     })
     .select('*')
     .single();
@@ -104,14 +111,20 @@ export async function updatePoster(
     name?: string;
     description?: string | null;
     imageUrl?: string | null;
+    accentColor?: string | null;
+    topImageUrl?: string | null;
+    bottomImageUrl?: string | null;
     isPublished?: boolean;
     isMarketplaceFeatured?: boolean;
-  }
+  },
 ): Promise<void> {
   const row: Record<string, unknown> = {};
   if (patch.name != null) row.name = patch.name;
   if (patch.description !== undefined) row.description = patch.description;
   if (patch.imageUrl !== undefined) row.image_url = patch.imageUrl;
+  if (patch.accentColor !== undefined) row.accent_color = patch.accentColor;
+  if (patch.topImageUrl !== undefined) row.top_image_url = patch.topImageUrl;
+  if (patch.bottomImageUrl !== undefined) row.bottom_image_url = patch.bottomImageUrl;
   if (patch.isPublished !== undefined) row.is_published = patch.isPublished;
   if (patch.isMarketplaceFeatured !== undefined) row.is_marketplace_featured = patch.isMarketplaceFeatured;
   const { error } = await db().from('posters').update(row).eq('id', id);
@@ -133,9 +146,19 @@ export async function setPosterSkus(posterId: string, skuIds: string[]): Promise
   if (error) throw error;
 }
 
+export async function assignShowcaseToConsumer(consumerId: string, posterId: string | null): Promise<void> {
+  const { error } = await db().rpc('assign_showcase_to_consumer', {
+    p_consumer_id: consumerId,
+    p_poster_id: posterId,
+  });
+  if (error) throw error;
+}
+
 export function posterSkuNames(poster: ProviderPoster, skus: ProviderSku[]): string {
   const names = poster.skuIds
     .map((id) => skus.find((s) => s.id === id)?.name)
     .filter((n): n is string => !!n);
   return names.join(', ');
 }
+
+export const SHOWCASE_ACCENT_PRESETS = ['#6C5CE7', '#0984E3', '#00B894', '#E17055', '#2D3436', '#D63031'];

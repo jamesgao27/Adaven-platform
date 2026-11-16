@@ -34,6 +34,18 @@ configureProductUi({
   ],
   defaultSpaceKind: 'consumer',
   allowAdditionalSpaces: true,
+  getManagementMenuItems: (space) => {
+    if (space?.kind !== 'provider') return [];
+    return [
+      {
+        id: 'integrations',
+        title: 'Integrations',
+        icon: 'link-outline',
+        route: '/integrations',
+        description: 'Connect ERP and sync products',
+      },
+    ];
+  },
   getSidebarNavItems: (space) => {
     if (space?.kind === 'provider') {
       return [
@@ -52,8 +64,14 @@ configureProductUi({
           match: (p) => p.startsWith('/catalog'),
         },
         {
+          path: '/pricing',
+          label: 'Pricing',
+          icon: 'pricetag-outline',
+          match: (p) => p.startsWith('/pricing'),
+        },
+        {
           path: '/marketing',
-          label: 'Marketing',
+          label: 'Showcases',
           icon: 'images-outline',
           match: (p) => p.startsWith('/marketing'),
         },

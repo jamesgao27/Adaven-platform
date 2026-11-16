@@ -44,10 +44,18 @@ export function buildInviteUrl(invitationId: string): string {
 
 // 创建邀请（极简版本：只使用缓存数据，不查询数据库）
 // 业务逻辑：空间管理员创建邀请，包含自己的id和email（来自缓存）、当前空间id、被邀请者email、创建时间、状态
+export type CreateInvitationResult = {
+  invitation: SpaceInvitation | null;
+  error: Error | null;
+  emailSent?: boolean;
+  emailError?: string | null;
+  inviteUrl?: string;
+};
+
 export async function createInvitation(
   inviteeEmail: string,
   options?: { inviteAsAdmin?: boolean }
-): Promise<{ invitation: SpaceInvitation | null; error: Error | null }> {
+): Promise<CreateInvitationResult> {
   try {
     // 1. 获取认证用户ID（不查询数据库）
     const { data: { user: authUser } } = await getPlatformClient().auth.getUser();
@@ -216,53 +224,29 @@ export async function createInvitation(
           error: new Error('Failed to create or find invitation'),
         };
       }
-      
-      // 返回邀请信息
-      return {
-        invitation: {
-          id: finalInvitationId,
-          spaceId: spaceId,
-          inviterId: authUser.id,
-          inviteeEmail: normalizedEmail,
-          status: 'pending',
-          createdAt: createdAt,
-          acceptedAt: undefined,
-          inviterEmail: inviterEmail,
-          spaceName: spaceName,
-          inviteAsAdmin,
-        },
-        error: null,
-      };
+
+      return await finalizeCreatedInvitation({
+        invitationId: finalInvitationId,
+        spaceId,
+        inviterId: authUser.id,
+        inviteeEmail: normalizedEmail,
+        createdAt,
+        inviterEmail,
+        spaceName,
+        inviteAsAdmin,
+      });
     }
 
-    // 8. 发送邀请邮件（异步，不阻塞返回，失败不影响邀请创建）
-    sendInvitationEmail(
-      inviteeEmail, 
-      invitationId,
-      false,
+    return await finalizeCreatedInvitation({
+      invitationId: String(invitationId),
       spaceId,
-      inviterEmail.split('@')[0] || 'Someone',
-      spaceName
-    ).catch(err => {
-      console.warn('Failed to send invitation email:', err);
+      inviterId: authUser.id,
+      inviteeEmail: inviteeEmail.toLowerCase().trim(),
+      createdAt,
+      inviterEmail,
+      spaceName,
+      inviteAsAdmin,
     });
-
-    // 9. 返回邀请信息（使用已知数据，不查询数据库）
-    return {
-      invitation: {
-        id: invitationId,
-        spaceId: spaceId,
-        inviterId: authUser.id,
-        inviteeEmail: inviteeEmail.toLowerCase().trim(),
-        status: 'pending',
-        createdAt: createdAt,
-        acceptedAt: undefined,
-        inviterEmail: inviterEmail,
-        spaceName: spaceName,
-        inviteAsAdmin,
-      },
-      error: null,
-    };
   } catch (error) {
     console.error('Error creating invitation:', error);
     return {
@@ -270,6 +254,65 @@ export async function createInvitation(
       error: error instanceof Error ? error : new Error('Failed to create invitation'),
     };
   }
+}
+
+async function finalizeCreatedInvitation(args: {
+  invitationId: string;
+  spaceId: string;
+  inviterId: string;
+  inviteeEmail: string;
+  createdAt: string;
+  inviterEmail: string;
+  spaceName: string;
+  inviteAsAdmin: boolean;
+}): Promise<CreateInvitationResult> {
+  const invitation: SpaceInvitation = {
+    id: args.invitationId,
+    spaceId: args.spaceId,
+    inviterId: args.inviterId,
+    inviteeEmail: args.inviteeEmail,
+    status: 'pending',
+    createdAt: args.createdAt,
+    acceptedAt: undefined,
+    inviterEmail: args.inviterEmail,
+    spaceName: args.spaceName,
+    inviteAsAdmin: args.inviteAsAdmin,
+  };
+  const inviteUrl = buildInviteUrl(args.invitationId);
+
+  let isExistingUser = false;
+  try {
+    const { data: existing } = await getPlatformClient()
+      .from('users')
+      .select('id')
+      .eq('email', args.inviteeEmail)
+      .maybeSingle();
+    isExistingUser = Boolean(existing?.id);
+  } catch {
+    isExistingUser = false;
+  }
+
+  let emailSent = false;
+  let emailError: string | null = null;
+  try {
+    const result = await sendInvitationEmail(
+      args.inviteeEmail,
+      args.invitationId,
+      isExistingUser,
+      args.spaceId,
+      args.inviterEmail.split('@')[0] || 'Someone',
+      args.spaceName
+    );
+    emailSent = result.emailSent === true;
+    if (!emailSent) {
+      emailError = 'Invite saved, but email was not sent. Share the invite link instead.';
+    }
+  } catch (err) {
+    console.warn('Failed to send invitation email:', err);
+    emailError = err instanceof Error ? err.message : 'Failed to send invitation email';
+  }
+
+  return { invitation, error: null, emailSent, emailError, inviteUrl };
 }
 
 /** Returns { emailSent: true } when Supabase sent the invite email; { emailSent: false } when existing user (invite in-app only). */

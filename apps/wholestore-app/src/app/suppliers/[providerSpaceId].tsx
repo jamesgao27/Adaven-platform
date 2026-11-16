@@ -9,6 +9,8 @@ import {
   Platform,
   RefreshControl,
   useWindowDimensions,
+  TextInput,
+  Image,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,12 +27,12 @@ import {
 import {
   applyToFactory,
   createOrderFromMarketplace,
-  getMarketplaceFactoryPoster,
-  listStoreSkusForFactory,
+  getDealerStorefront,
   requireConsumerSpace,
-  type MarketplaceFactoryPoster,
-  type MarketplaceSku,
+  type DealerStorefront,
+  type DealerStorefrontSku,
 } from '@/lib/consumer';
+import { pushOrderToErp } from '@/lib/erp';
 
 type ViewMode = 'grid' | 'list';
 type CartLine = { skuId: string; quantity: number };
@@ -44,10 +46,10 @@ export default function SupplierStoreScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [applying, setApplying] = useState(false);
-  const [poster, setPoster] = useState<MarketplaceFactoryPoster | null>(null);
-  const [skus, setSkus] = useState<MarketplaceSku[]>([]);
+  const [storefront, setStorefront] = useState<DealerStorefront | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>(isDesktop ? 'grid' : 'list');
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     const space = await requireConsumerSpace();
@@ -59,12 +61,7 @@ export default function SupplierStoreScreen() {
       router.replace('/suppliers');
       return;
     }
-    const [storePoster, storeSkus] = await Promise.all([
-      getMarketplaceFactoryPoster(providerSpaceId),
-      listStoreSkusForFactory(providerSpaceId),
-    ]);
-    setPoster(storePoster);
-    setSkus(storeSkus);
+    setStorefront(await getDealerStorefront(space.id, providerSpaceId));
   }, [providerSpaceId, router]);
 
   useEffect(() => {
@@ -83,19 +80,37 @@ export default function SupplierStoreScreen() {
   useFocusEffect(
     useCallback(() => {
       loadData();
-    }, [loadData])
+    }, [loadData]),
   );
 
-  const selectedIds = useMemo(() => new Set(cart.map((l) => l.skuId)), [cart]);
-  const canOrder = poster?.relationStatus === 'enrolled';
-  const isPending = poster?.relationStatus === 'pending';
+  const accent = storefront?.poster?.accentColor || '#6C5CE7';
+  const canOrder = storefront?.relationStatus === 'enrolled';
+  const isPending = storefront?.relationStatus === 'pending';
+  const skus = storefront?.skus ?? [];
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of skus) if (s.category?.trim()) set.add(s.category.trim().toUpperCase());
+    return [...set].sort();
+  }, [skus]);
 
-  const toggleSku = (sku: MarketplaceSku) => {
+  const visibleSkus = useMemo(() => {
+    if (!categoryFilter) return skus;
+    return skus.filter((s) => (s.category || '').toUpperCase() === categoryFilter);
+  }, [skus, categoryFilter]);
+
+  const selectedIds = useMemo(() => new Set(cart.map((l) => l.skuId)), [cart]);
+
+  const toggleSku = (sku: DealerStorefrontSku) => {
     if (!canOrder) return;
+    const moq = sku.moq ?? 1;
     setCart((prev) => {
-      if (prev.some((l) => l.skuId === sku.id)) return prev.filter((l) => l.skuId !== sku.id);
-      return [...prev, { skuId: sku.id, quantity: 1 }];
+      if (prev.some((l) => l.skuId === sku.skuId)) return prev.filter((l) => l.skuId !== sku.skuId);
+      return [...prev, { skuId: sku.skuId, quantity: moq }];
     });
+  };
+
+  const setQty = (skuId: string, quantity: number) => {
+    setCart((prev) => prev.map((l) => (l.skuId === skuId ? { ...l, quantity } : l)));
   };
 
   const apply = async () => {
@@ -119,11 +134,31 @@ export default function SupplierStoreScreen() {
       showToast('Select at least one SKU', 'error');
       return;
     }
+    for (const line of cart) {
+      const priced = skus.find((s) => s.skuId === line.skuId);
+      if (priced?.moq != null && line.quantity < priced.moq) {
+        showToast(`Quantity below MOQ (${priced.moq}) for ${priced.name}`, 'error');
+        return;
+      }
+    }
     setSaving(true);
     try {
       const space = await requireConsumerSpace();
-      if (!space) return;
-      const orderId = await createOrderFromMarketplace(space.id, cart);
+      if (!space || !providerSpaceId) return;
+      const orderId = await createOrderFromMarketplace(
+        space.id,
+        cart.map((c) => ({ skuId: c.skuId, quantity: c.quantity })),
+      );
+      try {
+        await pushOrderToErp(providerSpaceId, orderId);
+      } catch (pushErr) {
+        showToast(
+          pushErr instanceof Error
+            ? `Order created; ERP push pending: ${pushErr.message}`
+            : 'Order created; ERP push pending',
+          'error',
+        );
+      }
       setCart([]);
       showToast('Order created', 'success');
       router.push(`/orders/${orderId}`);
@@ -134,11 +169,22 @@ export default function SupplierStoreScreen() {
     }
   };
 
-  const toItem = (sku: MarketplaceSku) => {
-    const item = skuToCatalogListItem(sku);
-    const on = selectedIds.has(sku.id);
+  const toItem = (sku: DealerStorefrontSku) => {
+    const item = skuToCatalogListItem({
+      id: sku.skuId,
+      name: sku.name,
+      description: sku.description,
+      imageUrl: sku.imageUrl,
+      isPublished: true,
+    });
+    const on = selectedIds.has(sku.skuId);
+    const priceLabel =
+      sku.unitPrice != null
+        ? `$${sku.unitPrice.toFixed(2)}${sku.moq != null ? ` · MOQ ${sku.moq}` : ''}`
+        : sku.category || undefined;
     return {
       ...item,
+      footerText: [sku.category, priceLabel].filter(Boolean).join(' · ') || item.footerText,
       hideStatusBadge: true,
       statusCorner: null,
       action: canOrder
@@ -176,12 +222,21 @@ export default function SupplierStoreScreen() {
           style={styles.back}
           onPress={() => router.push(canOrder ? '/suppliers' : '/suppliers/discover')}
         >
-          <Ionicons name="chevron-back" size={20} color="#6C5CE7" />
-          <Text style={styles.backText}>{canOrder ? 'Stores' : 'Find suppliers'}</Text>
+          <Ionicons name="chevron-back" size={20} color={accent} />
+          <Text style={[styles.backText, { color: accent }]}>{canOrder ? 'Stores' : 'Find suppliers'}</Text>
         </TouchableOpacity>
-        <Text style={styles.factory}>{poster?.factoryName || 'Supplier'}</Text>
-        <Text style={styles.posterName}>{poster?.posterName || 'Showcase'}</Text>
-        {poster?.posterDescription ? <Text style={styles.intro}>{poster.posterDescription}</Text> : null}
+
+        {storefront?.poster?.topImageUrl ? (
+          <Image source={{ uri: storefront.poster.topImageUrl }} style={styles.band} resizeMode="cover" />
+        ) : (
+          <View style={[styles.bandPlaceholder, { borderColor: accent }]} />
+        )}
+
+        <Text style={styles.posterName}>{storefront?.poster?.name || 'Store'}</Text>
+        {storefront?.poster?.description ? (
+          <Text style={styles.intro}>{storefront.poster.description}</Text>
+        ) : null}
+
         {!loading && !canOrder ? (
           <View style={styles.showcaseBox}>
             <Text style={styles.showcaseTitle}>{isPending ? 'Application sent' : 'Showcase only'}</Text>
@@ -192,7 +247,7 @@ export default function SupplierStoreScreen() {
             </Text>
             {!isPending ? (
               <TouchableOpacity
-                style={[styles.applyBtn, applying && { opacity: 0.6 }]}
+                style={[styles.applyBtn, { backgroundColor: accent }, applying && { opacity: 0.6 }]}
                 onPress={apply}
                 disabled={applying}
               >
@@ -205,58 +260,118 @@ export default function SupplierStoreScreen() {
             ) : null}
           </View>
         ) : null}
+
         {loading ? (
-          <ActivityIndicator size="large" color="#6C5CE7" style={styles.loader} />
+          <ActivityIndicator size="large" color={accent} style={styles.loader} />
         ) : (
           <>
             <View style={styles.header}>
               <Text style={styles.sectionTitle}>{canOrder ? 'Products' : 'Catalog preview'}</Text>
               <View style={styles.viewToggle}>
                 <TouchableOpacity
-                  style={[styles.viewToggleBtn, viewMode === 'grid' && styles.viewToggleBtnActive]}
+                  style={[styles.viewToggleBtn, viewMode === 'grid' && { backgroundColor: `${accent}22` }]}
                   onPress={() => setViewMode('grid')}
                 >
-                  <Ionicons name="grid-outline" size={20} color={viewMode === 'grid' ? '#6C5CE7' : '#636E72'} />
+                  <Ionicons name="grid-outline" size={20} color={viewMode === 'grid' ? accent : '#636E72'} />
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.viewToggleBtn, viewMode === 'list' && styles.viewToggleBtnActive]}
+                  style={[styles.viewToggleBtn, viewMode === 'list' && { backgroundColor: `${accent}22` }]}
                   onPress={() => setViewMode('list')}
                 >
-                  <Ionicons name="list" size={22} color={viewMode === 'list' ? '#6C5CE7' : '#636E72'} />
+                  <Ionicons name="list" size={22} color={viewMode === 'list' ? accent : '#636E72'} />
                 </TouchableOpacity>
               </View>
             </View>
-            {skus.length === 0 ? (
-              <Text style={styles.empty}>This supplier has no published products yet.</Text>
+
+            {categories.length > 0 ? (
+              <ScrollView horizontal style={styles.catRow} showsHorizontalScrollIndicator={false}>
+                <TouchableOpacity
+                  style={[styles.catChip, !categoryFilter && { backgroundColor: `${accent}33` }]}
+                  onPress={() => setCategoryFilter(null)}
+                >
+                  <Text style={styles.catChipText}>All</Text>
+                </TouchableOpacity>
+                {categories.map((c) => (
+                  <TouchableOpacity
+                    key={c}
+                    style={[styles.catChip, categoryFilter === c && { backgroundColor: `${accent}33` }]}
+                    onPress={() => setCategoryFilter(c)}
+                  >
+                    <Text style={styles.catChipText}>{c}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            ) : null}
+
+            {visibleSkus.length === 0 ? (
+              <Text style={styles.empty}>
+                {canOrder ? 'No priced products on this showcase yet.' : 'No products on this showcase yet.'}
+              </Text>
             ) : viewMode === 'list' ? (
               <View style={projectListStyles.listChromeWrap}>
                 <View style={projectListStyles.list}>
-                  {skus.map((s) => (
-                    <ProjectListRow key={s.id} item={toItem(s)} onPress={() => toggleSku(s)} />
+                  {visibleSkus.map((s) => (
+                    <View key={s.skuId}>
+                      <ProjectListRow item={toItem(s)} onPress={() => toggleSku(s)} />
+                      {selectedIds.has(s.skuId) && canOrder ? (
+                        <View style={styles.qtyRow}>
+                          <Text style={styles.qtyLabel}>Qty (MOQ {s.moq ?? 1})</Text>
+                          <TextInput
+                            style={styles.qtyInput}
+                            keyboardType="decimal-pad"
+                            value={String(cart.find((c) => c.skuId === s.skuId)?.quantity ?? 1)}
+                            onChangeText={(t) => setQty(s.skuId, Number(t) || 0)}
+                          />
+                        </View>
+                      ) : null}
+                    </View>
                   ))}
                 </View>
               </View>
             ) : (
               <View style={styles.grid}>
-                {skus.map((s) => (
-                  <ProjectListCard
-                    key={s.id}
-                    item={toItem(s)}
-                    cardWidth={cardWidth}
-                    onPress={() => toggleSku(s)}
-                  />
+                {visibleSkus.map((s) => (
+                  <View key={s.skuId} style={{ width: cardWidth }}>
+                    <ProjectListCard item={toItem(s)} cardWidth={cardWidth} onPress={() => toggleSku(s)} />
+                    {selectedIds.has(s.skuId) && canOrder ? (
+                      <View style={styles.qtyRow}>
+                        <Text style={styles.qtyLabel}>Qty</Text>
+                        <TextInput
+                          style={styles.qtyInput}
+                          keyboardType="decimal-pad"
+                          value={String(cart.find((c) => c.skuId === s.skuId)?.quantity ?? 1)}
+                          onChangeText={(t) => setQty(s.skuId, Number(t) || 0)}
+                        />
+                      </View>
+                    ) : null}
+                  </View>
                 ))}
               </View>
             )}
           </>
         )}
+
+        {storefront?.poster?.bottomImageUrl ? (
+          <Image
+            source={{ uri: storefront.poster.bottomImageUrl }}
+            style={[styles.band, { marginTop: 24 }]}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={[styles.bandPlaceholder, { marginTop: 24, borderColor: accent }]} />
+        )}
       </ScrollView>
+
       {canOrder && cart.length > 0 ? (
         <View style={styles.bar}>
           <Text style={styles.barText}>
             {cart.length} SKU{cart.length === 1 ? '' : 's'}
           </Text>
-          <TouchableOpacity style={[styles.place, saving && { opacity: 0.6 }]} onPress={placeOrder} disabled={saving}>
+          <TouchableOpacity
+            style={[styles.place, { backgroundColor: accent }, saving && { opacity: 0.6 }]}
+            onPress={placeOrder}
+            disabled={saving}
+          >
             {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.placeText}>Place order</Text>}
           </TouchableOpacity>
         </View>
@@ -270,8 +385,17 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { paddingTop: 20, paddingBottom: 88, paddingHorizontal: 12 },
   back: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  backText: { fontSize: 15, fontWeight: '600', color: '#6C5CE7' },
-  factory: { fontSize: 13, fontWeight: '700', color: '#95A5A6', textTransform: 'uppercase', letterSpacing: 0.6 },
+  backText: { fontSize: 15, fontWeight: '600' },
+  band: { width: '100%', height: 120, borderRadius: 12, backgroundColor: '#E9ECEF', marginBottom: 12 },
+  bandPlaceholder: {
+    width: '100%',
+    height: 56,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    marginBottom: 12,
+    backgroundColor: '#F1F2F6',
+  },
   posterName: { fontSize: 22, fontWeight: '800', color: '#2D3436', marginTop: 4 },
   intro: { fontSize: 14, color: '#636E72', lineHeight: 20, marginTop: 8, marginBottom: 8 },
   showcaseBox: {
@@ -288,7 +412,6 @@ const styles = StyleSheet.create({
   showcaseBody: { fontSize: 13, color: '#636E72', lineHeight: 18 },
   applyBtn: {
     alignSelf: 'flex-start',
-    backgroundColor: '#6C5CE7',
     borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -297,12 +420,31 @@ const styles = StyleSheet.create({
   applyBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
   loader: { marginTop: 40 },
   empty: { fontSize: 14, color: '#95A5A6', marginTop: 12 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, marginBottom: 16 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, marginBottom: 12 },
   sectionTitle: { fontSize: 18, fontWeight: '600', color: '#2D3436' },
   viewToggle: { flexDirection: 'row', gap: 4 },
   viewToggleBtn: { padding: 8, borderRadius: 8 },
-  viewToggleBtnActive: { backgroundColor: '#EDE9FE' },
+  catRow: { marginBottom: 12, maxHeight: 40 },
+  catChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: '#F1F2F6',
+    marginRight: 8,
+  },
+  catChipText: { fontSize: 12, fontWeight: '600', color: '#2D3436' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GRID_GAP },
+  qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 8, marginBottom: 8 },
+  qtyLabel: { fontSize: 12, color: '#636E72' },
+  qtyInput: {
+    width: 72,
+    borderWidth: 1,
+    borderColor: '#DFE6E9',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    backgroundColor: '#fff',
+  },
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -316,7 +458,6 @@ const styles = StyleSheet.create({
   },
   barText: { fontSize: 14, fontWeight: '600', color: '#2D3436', flex: 1 },
   place: {
-    backgroundColor: '#6C5CE7',
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 10,

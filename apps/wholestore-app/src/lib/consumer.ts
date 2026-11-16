@@ -36,9 +36,91 @@ function mapMarketplaceSku(row: Record<string, any>): MarketplaceSku {
     description: row.description ?? null,
     imageUrl: row.image_url ?? null,
     isPublished: row.is_published === true,
+    skuCode: row.sku_code ?? null,
+    externalProductId: row.external_product_id ?? null,
+    externalSource: row.external_source ?? null,
+    qtyOnHand: row.qty_on_hand != null ? Number(row.qty_on_hand) : null,
+    syncedAt: row.synced_at ?? null,
+    category: row.category ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     factoryName: row.provider_name || row.factory_name || '—',
+  };
+}
+
+export type DealerStorefrontSku = {
+  skuId: string;
+  name: string;
+  description: string | null;
+  imageUrl: string | null;
+  skuCode: string | null;
+  category: string | null;
+  qtyOnHand: number | null;
+  unitPrice: number | null;
+  moq: number | null;
+  currency: string | null;
+};
+
+export type DealerStorefront = {
+  poster: {
+    id: string;
+    providerSpaceId: string;
+    name: string;
+    description: string | null;
+    imageUrl: string | null;
+    accentColor: string | null;
+    topImageUrl: string | null;
+    bottomImageUrl: string | null;
+    isPublished: boolean;
+    isMarketplaceFeatured: boolean;
+    isSystemDefault: boolean;
+  } | null;
+  relationStatus: MarketplaceRelationStatus;
+  skus: DealerStorefrontSku[];
+};
+
+export async function getDealerStorefront(
+  consumerSpaceId: string,
+  providerSpaceId: string,
+): Promise<DealerStorefront> {
+  const { data, error } = await db().rpc('get_dealer_storefront', {
+    p_consumer_space_id: consumerSpaceId,
+    p_provider_space_id: providerSpaceId,
+  });
+  if (error) throw error;
+  const row = data as Record<string, any>;
+  const poster = row?.poster;
+  return {
+    poster: poster
+      ? {
+          id: poster.id,
+          providerSpaceId: poster.provider_space_id,
+          name: poster.name ?? '',
+          description: poster.description ?? null,
+          imageUrl: poster.image_url ?? null,
+          accentColor: poster.accent_color ?? null,
+          topImageUrl: poster.top_image_url ?? null,
+          bottomImageUrl: poster.bottom_image_url ?? null,
+          isPublished: poster.is_published === true,
+          isMarketplaceFeatured: poster.is_marketplace_featured === true,
+          isSystemDefault: poster.is_system_default === true,
+        }
+      : null,
+    relationStatus: (row?.relation_status as MarketplaceRelationStatus) || 'none',
+    skus: Array.isArray(row?.skus)
+      ? row.skus.map((s: Record<string, any>) => ({
+          skuId: s.sku_id,
+          name: s.name,
+          description: s.description ?? null,
+          imageUrl: s.image_url ?? null,
+          skuCode: s.sku_code ?? null,
+          category: s.category ?? null,
+          qtyOnHand: s.qty_on_hand != null ? Number(s.qty_on_hand) : null,
+          unitPrice: s.unit_price != null ? Number(s.unit_price) : null,
+          moq: s.moq != null ? Number(s.moq) : null,
+          currency: s.currency ?? null,
+        }))
+      : [],
   };
 }
 

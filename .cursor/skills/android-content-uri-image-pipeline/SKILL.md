@@ -51,7 +51,7 @@ description: >-
 ## 必须落地的完整修复（发版 checklist）
 
 1. **拍照入口（对照备份）**：`DocumentScanner.scanDocument`（插件内 Android=`SCANNER_MODE_FULL`）— **禁止**用系统相机替代主路径
-2. **选项**：`croppedImageQuality: 90`、`letUserAdjustCrop: false`；首页 Android 另加 `maxNumDocuments`；扫描回调 `autoCrop=false`
+2. **选项**：经共享模块 `document-scanner-capture.ts`（首页与 Expenses 列表同一入口）：`croppedImageQuality: 90`、`letUserAdjustCrop: false`；Android `maxNumDocuments=MAX_CAPTURE_BATCH`；取消门闩与备份一致——原生 cancel 无 `scannedImages`，仅 `length > 0` 才上传（并短接 `status === 'cancel'`）；成功回调 `autoCrop=false`
 3. **Android 跳过预处理**：在 **`image-processor.processImageForUpload`** 内 early return（调用方仍按备份写 `if (!fromGallery) processImageForUpload`）
 4. **Android 跳过** `ensureNativeImageUriIsJpegForStorage` 的 ImageManipulator
 5. **上传**：`readLocalFileBytes`；**`spaceId`** 空则回退 `getCurrentUser().currentSpaceId`
@@ -66,6 +66,7 @@ USB logcat / Metro 找：`expense-debug`、`InfoOptionsLegacy`、`opening Docume
 
 ## 相关代码
 
+- `apps/vouchap-app/src/shared-logic/document-scanner-capture.ts`（首页/列表共用扫描入口 + cancel 门闩）
 - `apps/vouchap-app/src/shared-logic/image-processor.ts`
 - `apps/vouchap-app/src/shared-logic/supabase.ts`
 - `apps/vouchap-app/src/mobile-ui/app/index.tsx` / `receipts.tsx`

@@ -63,6 +63,12 @@ export type ProviderSku = {
   description: string | null;
   imageUrl: string | null;
   isPublished: boolean;
+  skuCode: string | null;
+  externalProductId: string | null;
+  externalSource: string | null;
+  qtyOnHand: number | null;
+  syncedAt: string | null;
+  category: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -74,9 +80,12 @@ export type ProviderOrderLine = {
   skuName: string;
   quantity: number;
   sortOrder: number;
+  unitPrice: number | null;
+  moqApplied: number | null;
 };
 
 export type OrderRequestOrigin = 'provider_manual' | 'consumer_marketplace';
+export type ErpPushStatus = 'pending' | 'pushed' | 'failed';
 
 export type ProviderOrder = {
   id: string;
@@ -87,6 +96,9 @@ export type ProviderOrder = {
   factoryName: string;
   status: OrderStatus;
   requestOrigin: OrderRequestOrigin;
+  externalOrderId: string | null;
+  erpPushStatus: ErpPushStatus | null;
+  erpPushedAt: string | null;
   createdAt: string;
   updatedAt: string;
   lines: ProviderOrderLine[];
@@ -136,6 +148,12 @@ function mapSku(row: Record<string, any>): ProviderSku {
     description: row.description ?? null,
     imageUrl: row.image_url ?? null,
     isPublished: row.is_published === true,
+    skuCode: row.sku_code ?? null,
+    externalProductId: row.external_product_id ?? null,
+    externalSource: row.external_source ?? null,
+    qtyOnHand: row.qty_on_hand != null ? Number(row.qty_on_hand) : null,
+    syncedAt: row.synced_at ?? null,
+    category: row.category ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -305,13 +323,20 @@ export async function createSku(providerSpaceId: string, name = 'New SKU'): Prom
 
 export async function updateSku(
   id: string,
-  patch: { name?: string; description?: string | null; imageUrl?: string | null; isPublished?: boolean }
+  patch: {
+    name?: string;
+    description?: string | null;
+    imageUrl?: string | null;
+    isPublished?: boolean;
+    category?: string | null;
+  }
 ): Promise<void> {
   const row: Record<string, unknown> = {};
   if (patch.name != null) row.name = patch.name;
   if (patch.description !== undefined) row.description = patch.description;
   if (patch.imageUrl !== undefined) row.image_url = patch.imageUrl;
   if (patch.isPublished !== undefined) row.is_published = patch.isPublished;
+  if (patch.category !== undefined) row.category = patch.category?.trim() || null;
   const { error } = await db().from('skus').update(row).eq('id', id);
   if (error) throw error;
 }
@@ -326,7 +351,7 @@ async function attachLines(orders: Record<string, any>[]): Promise<ProviderOrder
   const ids = orders.map((o) => o.id);
   const { data: lines, error } = await db()
     .from('order_lines')
-    .select('id, order_id, sku_id, quantity, sort_order')
+    .select('id, order_id, sku_id, quantity, sort_order, unit_price, moq_applied')
     .in('order_id', ids)
     .order('sort_order', { ascending: true });
   if (error) throw error;
@@ -345,6 +370,8 @@ async function attachLines(orders: Record<string, any>[]): Promise<ProviderOrder
       skuName: skuNameById.get(line.sku_id) || '—',
       quantity: Number(line.quantity) || 1,
       sortOrder: line.sort_order ?? 0,
+      unitPrice: line.unit_price != null ? Number(line.unit_price) : null,
+      moqApplied: line.moq_applied != null ? Number(line.moq_applied) : null,
     };
     const list = byOrder.get(line.order_id) ?? [];
     list.push(item);
@@ -368,6 +395,9 @@ async function attachLines(orders: Record<string, any>[]): Promise<ProviderOrder
     factoryName: factoryNameById.get(o.provider_space_id) || '—',
     status: (o.status as OrderStatus) || 'onboarding',
     requestOrigin: (o.request_origin as OrderRequestOrigin) || 'provider_manual',
+    externalOrderId: o.external_order_id ?? null,
+    erpPushStatus: (o.erp_push_status as ErpPushStatus) || null,
+    erpPushedAt: o.erp_pushed_at ?? null,
     createdAt: o.created_at,
     updatedAt: o.updated_at,
     lines: byOrder.get(o.id) ?? [],

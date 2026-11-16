@@ -30,6 +30,7 @@ export default function SkuDetailScreen() {
   const [sku, setSku] = useState<ProviderSku | null>(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('');
   const [published, setPublished] = useState(false);
 
   const load = useCallback(async () => {
@@ -47,6 +48,7 @@ export default function SkuDetailScreen() {
     setSku(row);
     setName(row.name);
     setDescription(row.description ?? '');
+    setCategory(row.category ?? '');
     setPublished(row.isPublished);
   }, [skuId, router]);
 
@@ -68,6 +70,7 @@ export default function SkuDetailScreen() {
       await updateSku(sku.id, {
         name: name.trim() || 'Untitled SKU',
         description: description.trim() || null,
+        category: category.trim() || null,
         isPublished: published,
       });
       setEditing(false);
@@ -83,8 +86,15 @@ export default function SkuDetailScreen() {
   const remove = () => {
     if (!sku) return;
     confirmDestructive('Delete SKU', 'This SKU will be removed from the catalog.', async () => {
-      await deleteSku(sku.id);
-      router.replace('/catalog');
+      try {
+        await deleteSku(sku.id);
+        router.replace('/catalog');
+      } catch (e) {
+        showToast(
+          e instanceof Error ? e.message : 'Cannot delete SKU (it may be used on an order)',
+          'error',
+        );
+      }
     });
   };
 
@@ -130,6 +140,27 @@ export default function SkuDetailScreen() {
             ) : (
               <Text style={styles.descEmpty}>No description</Text>
             )}
+            {editing ? (
+              <TextInput
+                style={styles.descInput}
+                value={category}
+                onChangeText={setCategory}
+                placeholder="Category tag (e.g. CHICKEN, BEEF)"
+                autoCapitalize="characters"
+              />
+            ) : sku.category ? (
+              <Text style={styles.metaLine}>Category: {sku.category}</Text>
+            ) : (
+              <Text style={styles.metaLine}>No category tag</Text>
+            )}
+            {sku.skuCode ? (
+              <Text style={styles.metaLine}>Code: {sku.skuCode}{sku.externalSource ? ` · ${sku.externalSource}` : ''}</Text>
+            ) : (
+              <Text style={styles.metaLine}>Manual SKU (no ERP code)</Text>
+            )}
+            {sku.qtyOnHand != null ? (
+              <Text style={styles.metaLine}>On hand (snapshot): {sku.qtyOnHand}</Text>
+            ) : null}
           </View>
         </View>
       </View>
@@ -161,7 +192,7 @@ export default function SkuDetailScreen() {
             <Text style={styles.primaryText}>Edit</Text>
           </TouchableOpacity>
         )}
-        {isNew === '1' || editing ? (
+        {editing ? (
           <TouchableOpacity style={styles.danger} onPress={remove}>
             <Text style={styles.dangerText}>Delete</Text>
           </TouchableOpacity>
@@ -219,6 +250,7 @@ const styles = StyleSheet.create({
   },
   descText: { fontSize: 13, color: '#636E72', lineHeight: 19 },
   descEmpty: { fontSize: 13, color: '#B2BEC3', fontStyle: 'italic' },
+  metaLine: { fontSize: 12, color: '#636E72', marginTop: 4 },
   descInput: {
     fontSize: 13,
     color: '#2D3436',

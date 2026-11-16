@@ -13,6 +13,7 @@ import { uploadReceiptImageTempWithSpace } from '@/lib/supabase';
 import { createProcessingReceipt, processReceiptInBackground } from '@/lib/receipt-processor';
 import { createProcessingInvoice, processInvoiceInBackground } from '@/lib/invoice-processor';
 import { processImageForUpload } from '@/lib/image-processor';
+import { MAX_CAPTURE_BATCH, scanDocumentsWithPlugin } from '@/lib/document-scanner-capture';
 import { showToast } from '@/lib/toast';
 import { showChoiceDialog } from '@/lib/confirmDialog';
 import Svg, { Path, Rect, G, Circle, Text as SvgText } from 'react-native-svg';
@@ -44,9 +45,6 @@ const FIRM_ORDER_STATUS_LABELS: Record<string, string> = {
   completed: 'Completed',
   cancelled: 'Cancelled',
 };
-
-/** Document scan / gallery multi-select: max pages per batch (Android scanner uses maxNumDocuments). */
-const MAX_CAPTURE_BATCH = 20;
 
 /** iOS: dismiss RN Modal before presenting document scanner, or touches can stay dead on the home screen. */
 function runAfterSuccessModalDismissed(action: () => void) {
@@ -602,20 +600,11 @@ export default function HomeScreen() {
         throw new Error('DocumentScanner module not loaded correctly');
       }
 
-      const scanOptions: Record<string, unknown> = {
-        croppedImageQuality: 90,
-        letUserAdjustCrop: false,
-      };
-      if (Platform.OS === 'android') {
-        scanOptions.maxNumDocuments = MAX_CAPTURE_BATCH;
-      }
-
-      const { scannedImages } = await DocumentScanner.scanDocument(scanOptions as any);
-
-      if (scannedImages && scannedImages.length > 0) {
-        // iOS VisionKit / Android：支持一次会话内多页；依次识别、逐条入库
+      // 与列表页同一套入口：取消会话绝不上传；成功则多页依次识别
+      const outcome = await scanDocumentsWithPlugin(DocumentScanner);
+      if (outcome.kind === 'success') {
         // 扫描结果原生已裁，autoCrop=false（与 Vouchap-261109backup 一致）
-        void processCapturedImages(scannedImages, false, false, type);
+        void processCapturedImages(outcome.images, false, false, type);
       }
     } catch (error) {
       console.error('Document scan error:', error);

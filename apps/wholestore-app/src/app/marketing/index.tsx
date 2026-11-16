@@ -31,10 +31,11 @@ type ViewMode = 'grid' | 'list';
 function posterToItem(poster: ProviderPoster) {
   const item = skuToCatalogListItem(poster);
   const badges: string[] = [];
-  if (poster.isSystemDefault) badges.push('Default store');
+  if (poster.isSystemDefault) badges.push('Default');
   if (poster.isMarketplaceFeatured && poster.isPublished) badges.push('Featured');
   return {
     ...item,
+    displayName: poster.name || 'Showcase',
     footerText: badges.join(' · ') || (poster.isPublished ? 'Published' : 'Draft'),
   };
 }
@@ -108,15 +109,15 @@ export default function MarketingScreen() {
       }
     >
       <Text style={styles.subtitle}>
-        Posters introduce your store and the SKUs on each storefront. The default poster always lists every
-        published SKU. Set one published poster as the featured storefront.
+        Configure showcases (accent, top/bottom images, SKUs). Assign one showcase per dealer. Featured is what
+        Discover visitors see.
       </Text>
       {loading ? (
         <ActivityIndicator size="large" color="#6C5CE7" style={styles.loader} />
       ) : (
         <>
           <View style={styles.header}>
-            <Text style={styles.sectionTitle}>Posters</Text>
+            <Text style={styles.sectionTitle}>Showcases</Text>
             <View style={styles.viewToggle}>
               <TouchableOpacity
                 style={[styles.viewToggleBtn, viewMode === 'grid' && styles.viewToggleBtnActive]}
@@ -147,7 +148,7 @@ export default function MarketingScreen() {
                     />
                   );
                 })}
-                <ServiceCatalogAddEntryTile variant="list" label="New poster" onPress={handleCreate} />
+                <ServiceCatalogAddEntryTile variant="list" label="New showcase" onPress={handleCreate} />
               </View>
             </View>
           ) : (
@@ -166,7 +167,7 @@ export default function MarketingScreen() {
               })}
               <ServiceCatalogAddEntryTile
                 variant="grid"
-                label="New poster"
+                label="New showcase"
                 cardWidth={cardWidth}
                 onPress={handleCreate}
               />

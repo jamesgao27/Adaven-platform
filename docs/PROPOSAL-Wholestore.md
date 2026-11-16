@@ -183,3 +183,14 @@ SKU 与库存以 ERP 为准，门户同步展示，不在门户新建库存账�
 3. 按第 7 节签署：启动付 **$3,200**，进入第 1 周。
 
 本文件为商务提案，不含实施代码。范围外需求另估。
+
+---
+
+## 实现进度（内部）
+
+| 项 | 状态 |
+|---|---|
+| Mock ERP（Pouchpies 食品 SKU fixture）+ `ErpAdapter` | 已落地；见 `docs/WHOLESTORE-ERP.md` |
+| 价盘 + MOQ + 按 Dealer 分配 | 已落地（`039_wholestore_erp_pricing`） |
+| 下单写回 `external_order_id`（Mock） | 已落地（Edge `erp-proxy`） |
+| 真 Finale / QBO / 承运商 | **未开始**（待客户沙盒或 Partner） |

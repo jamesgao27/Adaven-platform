@@ -17,6 +17,7 @@ import {
   type ProviderOrder,
   type ProviderSku,
 } from '@/lib/provider';
+import { pushOrderToErp } from '@/lib/erp';
 
 const STATUSES: OrderStatus[] = ['onboarding', 'processing', 'completed', 'cancelled'];
 const cellText = { fontSize: 14, color: '#2D3436' };
@@ -105,6 +106,14 @@ export default function OrderDetailScreen() {
           <Text style={cellText}>{r.quantity}</Text>
         ),
     },
+    {
+      id: 'price',
+      label: 'Unit price',
+      minWidth: 100,
+      getValue: (r) => (
+        <Text style={cellText}>{r.unitPrice != null ? `$${Number(r.unitPrice).toFixed(2)}` : '—'}</Text>
+      ),
+    },
     ...(isProvider
       ? [
           {
@@ -138,6 +147,29 @@ export default function OrderDetailScreen() {
         <Text style={s.kicker}>Info</Text>
         <Text style={s.title}>{isProvider ? order.dealerName : order.factoryName}</Text>
         <Text style={s.meta}>Created {format(new Date(order.createdAt), 'MMM dd, yyyy')}</Text>
+        <Text style={s.meta}>
+          External order: {order.externalOrderId || '—'}
+          {order.erpPushStatus ? ` · ${order.erpPushStatus}` : ''}
+        </Text>
+        {(!order.externalOrderId || order.erpPushStatus === 'failed') ? (
+          <TouchableOpacity
+            style={[listPageStyles.inviteButton, { marginTop: 10, alignSelf: 'flex-start' }]}
+            onPress={async () => {
+              try {
+                await pushOrderToErp(order.providerSpaceId, order.id);
+                showToast('Pushed to ERP', 'success');
+                await load();
+              } catch (e) {
+                showToast(e instanceof Error ? e.message : 'ERP push failed', 'error');
+                await load();
+              }
+            }}
+          >
+            <Text style={listPageStyles.inviteButtonText}>
+              {order.externalOrderId ? 'Retry ERP push' : 'Push to ERP'}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
         {isProvider ? (
           <View style={s.statusRow}>
             {STATUSES.map((st) => (
